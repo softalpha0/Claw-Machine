@@ -1,0 +1,65 @@
+{
+  "$comment": "Chain casino game manifest. RECONCILE field names/shape with examples/coinflip-public/game.manifest.json once the SDK is installed — this follows the documented intent (discovery + validation + presentation).",
+  "schemaVersion": "2",
+  "id": "claw-v1",
+  "name": "CLAW",
+  "tagline": "Provably-fair claw machine. Pick your risk, drop the claw, grab the prize.",
+  "version": "0.1.0",
+  "entry": "./index.html",
+  "contract": {
+    "interface": "ICasinoGameV2",
+    "source": "contracts/ClawMachineV2.sol",
+    "address": "0x0000000000000000000000000000000000000000"
+  },
+  "randomness": {
+    "source": "vrf",
+    "derivation": "sha256(seed ++ uint32be(index))",
+    "indices": {
+      "0": "held?",
+      "1": "slipped?",
+      "2": "bonus?",
+      "10": "prize selection (flavour only)"
+    }
+  },
+  "math": {
+    "declaredRtp": 0.955,
+    "rtpBand": [0.93, 0.98],
+    "houseEdge": 0.045,
+    "proof": "npm run montecarlo",
+    "spec": "MATH.md",
+    "modes": [
+      { "id": "plush", "label": "PLUSH PIT", "rtp": 0.9553, "maxWinX": 2.82 },
+      { "id": "gadget", "label": "GADGET GRAB", "rtp": 0.955, "maxWinX": 4.35 },
+      { "id": "vault", "label": "JACKPOT VAULT", "rtp": 0.955, "maxWinX": 13.58 }
+    ]
+  },
+  "bet": {
+    "currency": "chUSD",
+    "min": 1,
+    "max": 100,
+    "steps": [1, 2, 5, 10, 25, 50, 100]
+  },
+  "action": {
+    "type": "single",
+    "params": [
+      { "name": "mode", "type": "enum", "values": ["plush", "gadget", "vault"] }
+    ]
+  },
+  "presentation": {
+    "themeColor": "#22d3ee",
+    "background": "#0b0f1c",
+    "orientation": "responsive",
+    "loads": "instant",
+    "sound": true
+  },
+  "standalone": {
+    "playable": true,
+    "url": "https://REPLACE-with-your-domain.example",
+    "notes": "Runs fully client-side with a mock VRF + localStorage balance outside the chain.wtf iframe."
+  },
+  "jam": {
+    "event": "chain-jam-vol-1",
+    "widget": true,
+    "submittedVia": "https://jam.chain.wtf/"
+  }
+}

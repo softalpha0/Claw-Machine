@@ -1,0 +1,22 @@
+{
+  "name": "claw-jam",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLAW — a provably-fair claw machine for Chain Jam Vol. 1",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 5173",
+    "montecarlo": "node scripts/montecarlo.ts",
+    "tune": "node scripts/tune.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

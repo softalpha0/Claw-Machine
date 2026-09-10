@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CLAW — provably-fair claw machine</title>
+    <meta name="description" content="Pick your risk, drop the claw, grab the prize. A provably-fair claw machine built on the Chain casino SDK for Chain Jam Vol. 1." />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">C&nbsp;L&nbsp;A&nbsp;W</span>
+          <span class="brand-sub">provably-fair claw machine</span>
+        </div>
+        <div class="wallet">
+          <span class="wallet-label">balance</span>
+          <span id="balance" class="wallet-amount">—</span>
+          <span class="wallet-cur">chUSD</span>
+          <button id="refill" class="refill" hidden>refill demo</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage-wrap">
+          <canvas id="machine" aria-label="claw machine"></canvas>
+          <div id="message" class="message">pick a machine and drop the claw</div>
+        </section>
+
+        <section class="panel">
+          <div class="modes" id="modes" role="tablist" aria-label="risk mode"></div>
+
+          <div class="betblock">
+            <div class="bet-row">
+              <button class="step" id="betDown" aria-label="lower bet">–</button>
+              <div class="bet-amount"><span id="bet">5</span><small>chUSD</small></div>
+              <button class="step" id="betUp" aria-label="raise bet">+</button>
+            </div>
+            <div class="bet-chips" id="betChips"></div>
+          </div>
+
+          <button id="drop" class="drop">DROP THE CLAW</button>
+
+          <div class="odds" id="odds"></div>
+
+          <details class="verify" id="verify">
+            <summary>verify last drop</summary>
+            <div class="verify-body" id="verifyBody">no drops yet</div>
+          </details>
+        </section>
+      </main>
+
+      <section class="shelf">
+        <div class="shelf-head">
+          <h2>Prize shelf</h2>
+          <div class="shelf-progress">
+            <span id="shelfCount">0 / 30</span>
+            <div class="bar"><div id="shelfBar" class="bar-fill"></div></div>
+            <button id="shelfReset" class="linkbtn">reset</button>
+          </div>
+        </div>
+        <div class="shelf-grid" id="shelfGrid"></div>
+      </section>
+
+      <footer class="footer">
+        <div id="jamWidget"></div>
+        <p class="fineprint">
+          Every drop is decided by one VRF seed:
+          <code>sha256(seed ++ index)</code> → held? → slipped? → bonus?.
+          Theoretical RTP 95.5% (93–98% band). Prize identity is flavour only and never
+          changes the payout. Standalone demo uses a mock seed + play-money balance.
+          <a href="https://jam.chain.wtf/" target="_blank" rel="noopener">Chain Jam Vol. 1</a>
+        </p>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
