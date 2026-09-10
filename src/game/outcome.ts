@@ -6,13 +6,17 @@
  *   - run by scripts/montecarlo.ts to prove the empirical RTP
  *   - mirrored 1:1 in contracts/ClawMachineV2.sol (onRandomness)
  *
- * Seed index map (keccak256(seed ++ index)):
+ * The `seed` is the on-chain VRF word (bytes32) the facet hands `onRandomness`.
+ * Index map — sha256(seed ++ uint32be(index)):
  *   0  -> held?      1  -> slipped?      2  -> bonus?      10 -> which prize
+ * The held/slipped/bonus checks compare `uniformWad(i)` (BigInt) against a
+ * 1e18-scaled threshold, identical integer math to the contract. The prize
+ * pick is flavour and never affects payout, so it stays float.
  */
 
 import { MODES, type ModeId, type ModeConfig } from "./config.ts";
 import { PRIZES_BY_MODE } from "./prizes.ts";
-import { toSeed, uniform, weightedPick, bytesToHex, type Seed } from "./rng.ts";
+import { toSeed, uniformWad, toWad, weightedPick, bytesToHex, type Seed } from "./rng.ts";
 
 export type ResultKind = "whiff" | "slip" | "grab" | "bonus";
 
@@ -37,20 +41,22 @@ const floor6 = (n: number) => Math.floor(n * 1e6) / 1e6;
 export function resolve(seedInput: string | Uint8Array, mode: ModeId, bet: number): Outcome {
   const seed: Seed = toSeed(seedInput);
   const m: ModeConfig = MODES[mode];
-
-  const held = uniform(seed, 0);
-  const slip = uniform(seed, 1);
-  const bonus = uniform(seed, 2);
-  const rolls = { held, slip, bonus };
   const seedHex = bytesToHex(seed);
 
+  // Payout-affecting draws — WAD integers, identical to the contract.
+  const heldW = uniformWad(seed, 0);
+  const slipW = uniformWad(seed, 1);
+  const bonusW = uniformWad(seed, 2);
+  // Float mirrors for the verify panel only.
+  const rolls = { held: Number(heldW) / 1e18, slip: Number(slipW) / 1e18, bonus: Number(bonusW) / 1e18 };
+
   // 1. Did the claw grip anything?
-  if (held >= m.grab) {
+  if (heldW >= toWad(m.grab)) {
     return { mode, bet, payoutX: 0, payout: 0, kind: "whiff", prizeKey: null, rolls, seedHex };
   }
 
   // 2. Did it slip out on the lift?
-  if (slip < m.slip) {
+  if (slipW < toWad(m.slip)) {
     return {
       mode, bet, payoutX: m.consolation, payout: floor6(bet * m.consolation),
       kind: "slip", prizeKey: null, rolls, seedHex,
@@ -62,7 +68,7 @@ export function resolve(seedInput: string | Uint8Array, mode: ModeId, bet: numbe
   const prizeKey = pool[weightedPick(seed, 10, pool.map((x) => x.weight))]!.key;
   const clean = floor6(bet * m.mult);
 
-  if (bonus < m.bonusChance) {
+  if (bonusW < toWad(m.bonusChance)) {
     return {
       mode, bet, payoutX: m.mult * m.bonusFactor, payout: floor6(clean * m.bonusFactor),
       kind: "bonus", prizeKey, rolls, seedHex,

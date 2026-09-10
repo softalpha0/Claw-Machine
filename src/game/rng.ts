@@ -5,15 +5,19 @@
  * play must be a pure function of that seed so the outcome is reproducible and
  * verifiable by anyone.
  *
- * Canonical derivation (mirrored in contracts/ClawMachineV2.sol):
+ * Canonical derivation (mirrored EXACTLY in contracts/ClawMachineV2.sol so the
+ * on-chain payout always equals the one the game animates):
  *
- *     word_i   = sha256( seed(32 bytes) ++ uint32_be(i) )        // 32 bytes
- *     u64_i    = big-endian uint64 of the FIRST 8 bytes of word_i
- *     uniform  = u64_i / 2^64                                     // [0, 1)
+ *     word_i    = sha256( seed(32 bytes) ++ uint32_be(i) )        // 32 bytes
+ *     u64_i     = big-endian uint64 of the FIRST 8 bytes of word_i
+ *     uniformWad(i) = (u64_i * 1e18) >> 64                        // [0, 1e18)
  *
- * sha256 is used (not keccak) because it is a cheap EVM precompile, is fast in
- * pure JS, and a player can verify any outcome with a one-line sha256 call.
- * Integer ranges use rejection sampling — never `% n` on a raw word (bias).
+ * All payout-affecting decisions compare `uniformWad(i)` (BigInt) against a
+ * 1e18-scaled threshold — identical integer math to the Solidity `_uniformWad`.
+ * `uniform()` (float) is display/flavour only. sha256 is used (not keccak)
+ * because it is a cheap EVM precompile, is fast in pure JS, and a player can
+ * verify any outcome with a one-line sha256 call. Integer ranges use rejection
+ * sampling — never `% n` on a raw word (bias).
  */
 
 import { sha256 } from "@noble/hashes/sha256";
@@ -63,7 +67,22 @@ export function word64(seed: Seed, index: number): bigint {
   return n;
 }
 
-/** Uniform in [0, 1) with 64 bits of resolution. */
+/** WAD (1e18) fixed-point uniform in [0, 1e18). Bit-identical to Solidity `_uniformWad`. */
+export const WAD = 1_000_000_000_000_000_000n;
+export function uniformWad(seed: Seed, index: number): bigint {
+  return (word64(seed, index) * WAD) >> 64n;
+}
+
+/**
+ * A config number (probability or multiplier, ≤6 decimals) as its 1e18-scaled
+ * BigInt — exactly the value the Solidity literal `x e18` compiles to, so
+ * threshold comparisons match on both sides.
+ */
+export function toWad(x: number): bigint {
+  return BigInt(Math.round(x * 1e6)) * 1_000_000_000_000n;
+}
+
+/** Uniform in [0, 1) with 53 bits of resolution — display / flavour only. */
 export function uniform(seed: Seed, index: number): number {
   const d = digest(seed, index);
   // top 53 bits -> exact double in [0,1)

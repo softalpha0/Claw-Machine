@@ -1,11 +1,18 @@
 # CLAW — declared math
 
-One VRF seed per play. The seed is expanded with SHA-256 and read as uniforms:
+One VRF word per play — the `bytes32 randomness` the casino facet hands
+`ICasinoGameV2.onRandomness`. It is expanded with SHA-256:
 
 ```
-word_i  = sha256( seed[32 bytes] ++ uint32_be(i) )
-u_i     = first 8 bytes of word_i, big-endian  ->  divided by 2^64   ->  [0, 1)
+word_i       = sha256( randomness[32 bytes] ++ uint32_be(i) )
+u_i (float)  = first 8 bytes of word_i, big-endian  /  2^64          -> [0, 1)     (display only)
+uniformWad(i)= uint64(first 8 bytes of word_i) * 1e18  >>  64        -> [0, 1e18)  (decisions)
 ```
+
+Every payout-affecting comparison uses `uniformWad(i)` against a 1e18-scaled
+threshold — identical BigInt / uint256 integer math in `contracts/ClawMachineV2.sol`
+(`_uniformWad`), `src/game/rng.ts` (`uniformWad`) and the Monte-Carlo, so the
+on-chain payout is always exactly the one the guest animates.
 
 Indices used: `0` = held?, `1` = slipped?, `2` = bonus?, `10` = which prize (flavour only).
 

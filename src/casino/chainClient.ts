@@ -1,104 +1,209 @@
 /**
- * Real bridge to chain.wtf / the local harness via @chain/casino-sdk.
+ * Real bridge to chain.wtf / the local simulator via @chain/casino-sdk/guest.
  *
- * ┌─ RECONCILE WITH THE SDK ────────────────────────────────────────────────┐
- * │ The method names below come from the public SDK docs (sdk.chain.wtf):   │
- * │   connectGameToHost(), hostApi.openSession(), submitAction(),           │
- * │   revealOutcome().                                                      │
- * │ Once you `npm install` the SDK from your forked coinflip example, open  │
- * │ examples/coinflip-public/ and match the exact call shapes / payload     │
- * │ field names. Everything the rest of the game needs is behind the        │
- * │ CasinoClient interface, so only THIS file changes.                      │
- * └────────────────────────────────────────────────────────────────────────┘
+ * Reconciled against the SDK (v0.2.0): src/guest.ts, src/types.ts, the coinflip
+ * example (examples/coinflip-public/src/lib/useCasinoHost.ts + App.tsx) and
+ * simulator/contracts/LocalCasinoHost.sol.
  *
- * Contract side: contracts/ClawMachineV2.sol. `onRandomness` there must return
- * the exact same payout as resolve() here — that equality is the whole game.
+ * Lifecycle:
+ *   1. connectGameToHost({ setState })  -> penpal Connection
+ *   2. await connection.promise         -> HostApiV1  (openSession / revealOutcome …)
+ *   3. host pushes setState(snapshot) repeatedly; balance + settled sessions
+ *      arrive there, never by polling.
+ *   4. openSession({ wager, gameData }) -> { sessionKey }
+ *   5. watch snapshot.sessions.items for that sessionKey going terminal, read
+ *      the VRF word from raw.gameState / raw.randomness, resolve() locally for
+ *      the reveal, show the host's reported payout.
+ *   6. revealOutcome({ sessionId }) once the animation has shown the result.
+ *
+ * The contract (contracts/ClawMachineV2.sol) computes the identical payout on
+ * chain — resolve() here only needs the word for kind + prize + animation.
+ *
+ * Types come from the SDK once it is installed/linked; until then
+ * src/casino/chain-sdk.d.ts keeps this `any`-typed so the repo still builds.
  */
 
-import { resolve } from "../game/outcome.ts";
-import { MODES, type ModeId } from "../game/config.ts";
+import { resolve, type Outcome } from "../game/outcome.ts";
+import { MODE_ORDER, type ModeId } from "../game/config.ts";
 import type { CasinoClient, PlayResult } from "./client.ts";
 
-// The SDK is only present when built for the harness; keep the import soft so the
-// standalone demo bundle never needs it.
-type HostApi = {
-  openSession(args: { wager: bigint | number; action: unknown }): Promise<{
-    seed: string;
-    payout?: bigint | number;
-    balance?: bigint | number;
-  }>;
-  revealOutcome?(): void | Promise<void>;
-  submitAction?(action: unknown): Promise<unknown>;
-  on?(event: "snapshot" | "balance", cb: (snap: { balance: bigint | number }) => void): void;
-  caps?: { minWager: bigint | number; maxWager: bigint | number };
-  balance?: bigint | number;
-};
+// SessionPhase enum (solidity/ICasinoGameV2.sol)
+const PHASE_SETTLED = 3;
+const PHASE_FORFEITED = 4;
+const PHASE_CANCELLED = 5;
+const isTerminalPhase = (p: number | undefined): boolean =>
+  p === PHASE_SETTLED || p === PHASE_FORFEITED || p === PHASE_CANCELLED;
 
-const asNumber = (v: bigint | number | undefined, fallback = 0): number =>
-  v == null ? fallback : typeof v === "bigint" ? Number(v) / 1e6 /* chUSD 6dp */ : v;
+type SessionRow = {
+  sessionId: string;
+  sessionKey: string;
+  phase?: number;
+  wager?: string;
+  payout?: string;
+  isSettled: boolean;
+  raw: { gameState?: string; randomness?: string };
+};
+type Snapshot = {
+  token?: { decimals?: number; symbol?: string };
+  balances?: { smartVaultBalance?: string };
+  casino?: { maxBetAmount?: string };
+  sessions?: { items?: SessionRow[] };
+} | null;
+
+/** gameData = abi.encode(uint8 mode) — a single 32-byte big-endian word. */
+function encodeGameData(modeIndex: number): `0x${string}` {
+  return ("0x" + modeIndex.toString(16).padStart(64, "0")) as `0x${string}`;
+}
+
+const UI_MAX_BET = 100;
 
 export class ChainSdkClient implements CasinoClient {
   readonly kind = "chain" as const;
-  private host!: HostApi;
+
+  private host: { openSession: Function; revealOutcome: Function } | null = null;
+  private destroyConn: (() => void) | null = null;
+  private connReady: Promise<void>;
+
+  private snapshot: Snapshot = null;
+  private decimals = 18;
   private balance = 0;
   private listeners: Array<(b: number) => void> = [];
-  private started: Promise<void>;
+  private pending = new Map<string, (row: SessionRow) => void>();
+  private lastSessionId: string | null = null;
 
   constructor() {
-    this.started = this.connect();
+    this.connReady = this.connect();
   }
 
   private async connect(): Promise<void> {
-    const sdk: any = await import(/* @vite-ignore */ "@chain/casino-sdk");
-    // docs: guest-side initialiser for the iframe
-    this.host = (await sdk.connectGameToHost()) as HostApi;
-    this.balance = asNumber(this.host.balance, 0);
-    this.host.on?.("snapshot", (snap) => this.setBalance(asNumber(snap.balance, this.balance)));
-    this.host.on?.("balance", (snap) => this.setBalance(asNumber(snap.balance, this.balance)));
+    const sdk: any = await import(/* @vite-ignore */ "@chain/casino-sdk/guest");
+    const connection = sdk.connectGameToHost({
+      setState: async (snap: Snapshot) => this.onSnapshot(snap),
+    });
+    this.host = await connection.promise;
+    // keep the harness iframe sized to our content
+    const sizeObserver = sdk.observeGameContentSize?.(this.host);
+    this.destroyConn = () => {
+      sizeObserver?.disconnect?.();
+      connection.destroy();
+    };
+  }
+
+  private onSnapshot(snap: Snapshot): void {
+    this.snapshot = snap;
+    if (!snap) return;
+
+    this.decimals = snap.token?.decimals ?? 18;
+    const raw = snap.balances?.smartVaultBalance;
+    if (raw !== undefined) {
+      const next = Number(BigInt(raw)) / 10 ** this.decimals;
+      if (next !== this.balance) {
+        this.balance = next;
+        for (const cb of this.listeners) cb(next);
+      }
+    }
+
+    const rows = snap.sessions?.items ?? [];
+    for (const [key, doneFn] of [...this.pending]) {
+      const row = rows.find((r) => r.sessionKey === key);
+      if (row && (row.isSettled || isTerminalPhase(row.phase))) {
+        this.pending.delete(key);
+        doneFn(row);
+      }
+    }
   }
 
   ready(): Promise<void> {
-    return this.started;
+    return this.connReady;
   }
+
   getBalance(): number {
     return this.balance;
   }
+
   minBet(): number {
-    return asNumber(this.host?.caps?.minWager, 1);
+    return 1;
   }
+
   maxBet(): number {
-    return asNumber(this.host?.caps?.maxWager, 100);
+    const cap = this.snapshot?.casino?.maxBetAmount;
+    if (cap && cap !== "0") {
+      const asWhole = Number(BigInt(cap)) / 10 ** this.decimals;
+      if (asWhole > 0) return Math.min(UI_MAX_BET, Math.floor(asWhole));
+    }
+    return UI_MAX_BET;
   }
 
   async play(mode: ModeId, bet: number): Promise<PlayResult> {
-    await this.started;
-    // The action payload is what the contract's onSessionStart / onPlayerAction
-    // decodes. Keep it minimal: this is a one-shot game, the only choice is mode.
-    const res = await this.host.openSession({
-      wager: bet,
-      action: { game: "claw", mode, modeIndex: Object.keys(MODES).indexOf(mode) },
+    await this.connReady;
+    if (!this.host) throw new Error("host bridge not connected");
+
+    const modeIndex = MODE_ORDER.indexOf(mode);
+    const wager = (BigInt(Math.round(bet)) * 10n ** BigInt(this.decimals)).toString();
+
+    const { sessionKey } = await this.host.openSession({
+      wager,
+      gameData: encodeGameData(modeIndex),
     });
 
-    // Resolve locally from the VRF seed for the animation. The contract has
-    // already computed (or will settle) the identical payout on-chain.
-    const outcome = resolve(res.seed, mode, bet);
+    const row = await this.waitForSettle(sessionKey);
+    this.lastSessionId = row.sessionId;
 
-    if (res.balance != null) this.setBalance(asNumber(res.balance, this.balance));
-    else this.setBalance(this.balance - bet + outcome.payout);
+    if (isTerminalPhase(row.phase) && row.phase !== PHASE_SETTLED && !row.raw.gameState) {
+      throw new Error("round did not settle normally (forfeited / cancelled)");
+    }
+
+    const seedHex =
+      row.raw.gameState && row.raw.gameState.length === 66
+        ? row.raw.gameState
+        : row.raw.randomness;
+    if (!seedHex) throw new Error("settled session carries no randomness word");
+
+    const local = resolve(seedHex, mode, bet);
+
+    // The contract is authoritative for the number; keep our kind + prize.
+    const reported =
+      row.payout !== undefined ? Number(BigInt(row.payout)) / 10 ** this.decimals : local.payout;
+    if (Math.abs(reported - local.payout) > 1e-6 * Math.max(1, bet)) {
+      console.warn(
+        `[claw] payout mismatch — contract ${reported}, local ${local.payout}; showing contract value`,
+      );
+    }
+    const outcome: Outcome = { ...local, payout: reported };
 
     return { outcome, balance: this.balance };
   }
 
+  private waitForSettle(sessionKey: string): Promise<SessionRow> {
+    const existing = (this.snapshot?.sessions?.items ?? []).find((r) => r.sessionKey === sessionKey);
+    if (existing && (existing.isSettled || isTerminalPhase(existing.phase))) {
+      return Promise.resolve(existing);
+    }
+    return new Promise<SessionRow>((res, rej) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(sessionKey);
+        rej(new Error("timed out waiting for the round to settle"));
+      }, 90_000);
+      this.pending.set(sessionKey, (r) => {
+        clearTimeout(timer);
+        res(r);
+      });
+    });
+  }
+
   commitReveal(): void {
-    void this.host.revealOutcome?.();
+    if (this.host && this.lastSessionId) {
+      void Promise.resolve(this.host.revealOutcome({ sessionId: this.lastSessionId })).catch(() => {
+        /* reveal is display-only on the host; settlement is already final */
+      });
+    }
   }
 
   onBalanceChange(cb: (b: number) => void): void {
     this.listeners.push(cb);
   }
 
-  private setBalance(n: number): void {
-    this.balance = n;
-    for (const cb of this.listeners) cb(n);
+  destroy(): void {
+    this.destroyConn?.();
   }
 }

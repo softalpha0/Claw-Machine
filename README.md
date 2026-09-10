@@ -30,35 +30,52 @@ a jam requirement.
 
 ## Wiring to the Chain SDK
 
-Everything chain-specific is isolated so the game core never imports the SDK:
+Everything chain-specific is isolated so the game core never imports the SDK.
+Reconciled against **@chain/casino-sdk v0.2.0** (`src/guest.ts`, `src/types.ts`,
+`solidity/ICasinoGameV2.sol`, `examples/coinflip-public/`).
 
-| file | what it is | what to do |
+| file | what it is | status |
 |---|---|---|
-| `src/casino/client.ts` | `CasinoClient` interface | nothing — the contract both clients honour |
-| `src/casino/mockClient.ts` | standalone demo client | nothing |
-| `src/casino/chainClient.ts` | `@chain/casino-sdk` bridge adapter | **reconcile method/payload names** with `examples/coinflip-public/` |
-| `contracts/ClawMachineV2.sol` | `ICasinoGameV2` implementation | **reconcile the interface**; the `_payoutWad` math is final |
-| `game.manifest.json` | discovery + math + presentation | match field names to the coinflip manifest |
+| `src/casino/client.ts` | `CasinoClient` interface | final |
+| `src/casino/mockClient.ts` | standalone demo client | final |
+| `src/casino/chainClient.ts` | `@chain/casino-sdk/guest` bridge | wired to the real API; `any`-typed until the SDK is installed |
+| `src/casino/chain-sdk.d.ts` | ambient shims | **delete after linking the SDK** to get real types |
+| `contracts/ClawMachineV2.sol` | `ICasinoGameV2` impl (SessionContext / StepResult) | final; `_play` math is authoritative |
+| `public/game.manifest.json` | discovery manifest (SDK schema) | final |
 | `src/jam/widget.ts` | jam widget slot | paste the embed from jam.chain.wtf, flip `MOUNTED` |
 
-Steps:
+### Wire it to the simulator
 
-1. `npx @chain/casino-sdk` (or `git clone` the SDK) and **fork the coinflip example**.
-2. Drop `contracts/ClawMachineV2.sol` into `simulator/contracts/` — it hot-compiles.
-3. Point this dev server at the harness: `http://localhost:3300/?game=http://localhost:5173&gameAddress=0x…`
-4. Open `examples/coinflip-public/` and align: `connectGameToHost`,
-   `hostApi.openSession`, `revealOutcome`, the manifest schema, the
-   `ICasinoGameV2` struct names.
-5. Verify one drop end-to-end: the harness payout must equal the on-screen
-   payout, which equals `previewPayout(seed, mode, wager)` on the contract,
-   which equals `resolve(seed, mode, bet)` in TS.
+1. Unzip the SDK (`sdk.chain.wtf/sdk/casino-sdk.zip`), then in the SDK root:
+   `npm install && npm start` → harness at `http://localhost:3300`, chain at `:8545`
+   (chUSD is **18 decimals** in the sim).
+2. Copy `contracts/ClawMachineV2.sol` into the SDK's `simulator/contracts/`.
+   It hot-compiles, deploys and registers (`ClawGame` → canonical id `claw`).
+   Copy `../../solidity/ICasinoGameV2.sol` is resolved automatically.
+3. In ClawJam: `npm link @chain/casino-sdk` (or add it to `package.json`
+   pointing at the unzipped path), then **delete the `external` line in
+   `vite.config.ts`** and `src/casino/chain-sdk.d.ts`.
+4. `npm run dev`, then open
+   `http://localhost:3300/?game=http://localhost:5173&gameAddress=0x<deployed>`.
+5. Verify one drop end-to-end — the harness's settled payout must equal the
+   on-screen payout, which equals `previewPayout(randomness, mode, wager)` on
+   the contract, which equals `resolve(randomness, mode, bet)` in TS.
+6. Validate the manifest: `validateCasinoGameManifest(require('./public/game.manifest.json'))`
+   from the SDK returns `{ ok: true }`.
+
+The bridge flow (`chainClient.ts`): `connectGameToHost({ setState })` →
+`await connection.promise` for `hostApi` → `openSession({ wager, gameData })`
+where `gameData = abi.encode(uint8 mode)` → watch `snapshot.sessions.items` for
+the `sessionKey` going terminal → read the VRF word from `raw.gameState` /
+`raw.randomness` → `resolve()` locally for kind + prize → `revealOutcome({ sessionId })`.
 
 ## Randomness
 
-`sha256(seed ++ uint32be(index))`, first 8 bytes as a uint64, divided by 2^64.
-Chosen over keccak because it is a cheap EVM precompile, fast in pure JS, and any
-player can verify an outcome with a one-line `sha256`. Integer ranges use
-rejection sampling — never `% n` on a raw word. See [`MATH.md`](./MATH.md).
+The on-chain VRF word (`bytes32` handed to `onRandomness`) is the seed.
+`uniformWad(i) = uint64(first 8 bytes of sha256(seed ++ uint32be(i))) * 1e18 >> 64`.
+Every payout-affecting comparison is WAD BigInt on both sides, so the contract
+and the guest preview never disagree. sha256 (not keccak): cheap EVM precompile,
+fast in pure JS, one-line player verification. See [`MATH.md`](./MATH.md).
 
 ## Layout
 
@@ -71,7 +88,9 @@ src/game/machine.ts    canvas render + the reveal timeline
 src/game/audio.ts      synthesised SFX (no audio files)
 src/game/collection.ts the prize shelf (localStorage)
 src/main.ts            HUD + orchestration
-contracts/             ICasinoGameV2 implementation
+src/casino/            CasinoClient interface + mock (standalone) + chain (SDK bridge)
+contracts/             ICasinoGameV2 implementation (SessionContext / StepResult)
+public/game.manifest.json  SDK discovery manifest
 scripts/               montecarlo.ts, tune.ts
 ```
 

@@ -1,169 +1,212 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
-/*
- * CLAW — Chain Jam Vol. 1 entry.
+import {
+  ICasinoGameV2,
+  SessionContext,
+  StepResult,
+  SessionPhase
+} from "../../solidity/ICasinoGameV2.sol";
+
+/**
+ * CLAW — Chain Jam Vol. 1 entry. A provably-fair claw machine.
  *
- * ┌─ RECONCILE WITH THE SDK ───────────────────────────────────────────────────┐
- * │ This implements the DOCUMENTED shape of ICasinoGameV2 (quoteCaps,          │
- * │ quoteRiskParams, onSessionStart, onRandomness, onPlayerAction). Once you   │
- * │ `npm install` the SDK from your forked coinflip example, copy the real     │
- * │ `ICasinoGameV2.sol` into ./contracts, make this `is ICasinoGameV2`, and    │
- * │ line up the exact struct/param names + phase/timeout rules. The MATH in    │
- * │ `_payoutWad` below is the part that must never drift — it is byte-for-byte  │
- * │ the same model as src/game/outcome.ts and scripts/montecarlo.ts.           │
- * └───────────────────────────────────────────────────────────────────────────┘
+ * One VRF word per play. Three risk modes chosen before the drop, carried in
+ * `gameData` as `abi.encode(uint8 mode)` (0 = PLUSH PIT, 1 = GADGET GRAB,
+ * 2 = JACKPOT VAULT).
  *
- * One VRF seed per play. Randomness derivation (identical to the TS):
- *     word_i  = sha256(abi.encodePacked(seed, uint32(i)))
- *     u_i     = (uint64(bytes8(word_i)) * WAD) >> 64        // [0, WAD)
+ * Decision tree (mode m, wager w), evaluated from the single `randomness` word:
  *
- * Decision tree (mode m, wager w):
- *     if u0 >= grab[m]                 -> payout 0                       (whiff)
- *     if u1 <  slip[m]                 -> payout w * CONSOLATION / WAD   (slip)
- *     if u2 <  bonusChance[m]          -> payout w * mult[m] * bonusFactor[m] / WAD^2   (bonus)
- *     else                            -> payout w * mult[m] / WAD       (clean grab)
+ *     u_i = uniformWad(randomness, i)          // [0, 1e18)
+ *     u0 >= grab[m]                -> payout 0                    (whiff)
+ *     u1 <  slip[m]               -> payout w * 0.2              (slip / near-miss)
+ *     u2 <  bonusChance[m]        -> payout w * mult[m] * bonusFactor[m]  (double grab)
+ *     else                       -> payout w * mult[m]           (clean grab)
  *
- * Theoretical RTP per mode ~95.5% (see MATH.md, proven by `npm run montecarlo`).
+ * This is byte-identical to src/game/outcome.ts (guest preview) and
+ * scripts/montecarlo.ts (RTP proof). Theoretical RTP ~95.5% per mode, house
+ * edge ~4.5%, every mode inside the jam's 93–98% band. See MATH.md.
+ *
+ * Drop this file into the SDK's `simulator/contracts/` — it compiles, deploys
+ * and registers automatically (it needs no constructor args and exposes
+ * `quoteCaps` + `onPlayerAction`, the harness's game-detection markers).
  */
+contract ClawMachineV2 is ICasinoGameV2 {
+  uint256 internal constant WAD = 1e18;
 
-contract ClawMachineV2 {
-    // ------------------------------------------------------------------ constants
-    uint256 internal constant WAD = 1e18;
+  uint8 internal constant MODE_PLUSH = 0;
+  uint8 internal constant MODE_GADGET = 1;
+  uint8 internal constant MODE_VAULT = 2;
 
-    uint8 internal constant MODE_PLUSH  = 0;
-    uint8 internal constant MODE_GADGET = 1;
-    uint8 internal constant MODE_VAULT  = 2;
+  uint256 internal constant CONSOLATION_WAD = 0.2e18;
 
-    uint256 internal constant MIN_WAGER = 1e6;    // 1 chUSD (6dp)
-    uint256 internal constant MAX_WAGER = 100e6;  // 100 chUSD
+  // ----------------------------------------------------- per-mode params (WAD)
+  function _grab(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_PLUSH) return 0.72e18;
+    if (m == MODE_GADGET) return 0.48e18;
+    return 0.22e18; // VAULT
+  }
 
-    // per-mode params, indexed by mode id. WAD-scaled probabilities/multipliers.
-    // plush, gadget, vault
-    function _grab(uint8 m) internal pure returns (uint256) {
-        if (m == MODE_PLUSH)  return 0.72e18;
-        if (m == MODE_GADGET) return 0.48e18;
-        return 0.22e18; // vault
-    }
-    function _slip(uint8 m) internal pure returns (uint256) {
-        if (m == MODE_PLUSH)  return 0.12e18;
-        if (m == MODE_GADGET) return 0.15e18;
-        return 0.18e18;
-    }
-    function _bonusChance(uint8 m) internal pure returns (uint256) {
-        if (m == MODE_PLUSH)  return 0.05e18;
-        if (m == MODE_GADGET) return 0.06e18;
-        return 0.08e18;
-    }
-    function _mult(uint8 m) internal pure returns (uint256) {
-        if (m == MODE_PLUSH)  return 1.41e18;
-        if (m == MODE_GADGET) return 2.175e18;
-        return 4.526e18;
-    }
-    function _bonusFactor(uint8 m) internal pure returns (uint256) {
-        if (m == MODE_VAULT) return 3e18;
-        return 2e18; // plush + gadget
-    }
-    uint256 internal constant CONSOLATION = 0.2e18;
+  function _slip(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_PLUSH) return 0.12e18;
+    if (m == MODE_GADGET) return 0.15e18;
+    return 0.18e18;
+  }
 
-    // ------------------------------------------------------------------ randomness
-    /// @dev u_i in [0, WAD). Mirrors src/game/rng.ts `uniform`.
-    function _uniformWad(bytes32 seed, uint32 i) internal pure returns (uint256) {
-        bytes32 h = sha256(abi.encodePacked(seed, i));
-        uint64 top = uint64(bytes8(h)); // first 8 bytes, big-endian
-        return (uint256(top) * WAD) >> 64;
-    }
+  function _bonusChance(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_PLUSH) return 0.05e18;
+    if (m == MODE_GADGET) return 0.06e18;
+    return 0.08e18;
+  }
 
-    // ------------------------------------------------------------------ the math
-    /// @notice Payout for one play, WAD-relative to the wager unit.
-    /// @return payout absolute payout in wager units (same decimals as `wager`).
-    /// @return kind 0 whiff, 1 slip, 2 grab, 3 bonus
-    function _resolve(bytes32 seed, uint8 mode, uint256 wager)
-        internal
-        pure
-        returns (uint256 payout, uint8 kind)
-    {
-        require(mode <= MODE_VAULT, "bad mode");
+  function _mult(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_PLUSH) return 1.41e18;
+    if (m == MODE_GADGET) return 2.175e18;
+    return 4.526e18;
+  }
 
-        uint256 u0 = _uniformWad(seed, 0);
-        if (u0 >= _grab(mode)) {
-            return (0, 0); // whiff
-        }
+  function _bonusFactor(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_VAULT) return 3e18;
+    return 2e18; // PLUSH + GADGET
+  }
 
-        uint256 u1 = _uniformWad(seed, 1);
-        if (u1 < _slip(mode)) {
-            return (wager * CONSOLATION / WAD, 1); // slip / consolation
-        }
+  /// @dev Expected return per unit wager (WAD), closed form from MATH.md. Feeds
+  ///      the risk model's `expectedPayout`; not on the payout path.
+  function _rtpWad(uint8 m) internal pure returns (uint256) {
+    if (m == MODE_PLUSH) return 955_325_000_000_000_000;
+    if (m == MODE_GADGET) return 955_044_000_000_000_000;
+    return 955_049_000_000_000_000;
+  }
 
-        uint256 u2 = _uniformWad(seed, 2);
-        if (u2 < _bonusChance(mode)) {
-            // wager * mult * bonusFactor  (two WAD divisions)
-            uint256 p = wager * _mult(mode) / WAD;
-            p = p * _bonusFactor(mode) / WAD;
-            return (p, 3); // bonus
-        }
+  /// @dev Largest multiple of the wager a mode can return (mult * bonusFactor).
+  function _maxMultWad(uint8 m) internal pure returns (uint256) {
+    return (_mult(m) * _bonusFactor(m)) / WAD;
+  }
 
-        return (wager * _mult(mode) / WAD, 2); // clean grab
+  // ----------------------------------------- randomness (mirror of src/game/rng.ts)
+  /// @dev uniformWad(r, i) = uint64(first 8 bytes of sha256(r ++ uint32be(i))) * 1e18 / 2^64
+  function _uniformWad(bytes32 r, uint32 i) internal pure returns (uint256) {
+    uint64 top = uint64(bytes8(sha256(abi.encodePacked(r, i))));
+    return (uint256(top) * WAD) >> 64;
+  }
+
+  // ------------------------------------- paytable (mirror of outcome.ts resolve())
+  /// @return payout  absolute payout in wager base units
+  /// @return kind    0 whiff, 1 slip, 2 grab, 3 bonus
+  function _play(bytes32 r, uint8 mode, uint256 wager)
+    internal
+    pure
+    returns (uint256 payout, uint8 kind)
+  {
+    if (_uniformWad(r, 0) >= _grab(mode)) return (0, 0); // whiff
+
+    if (_uniformWad(r, 1) < _slip(mode)) {
+      return ((wager * CONSOLATION_WAD) / WAD, 1); // slip / consolation
     }
 
-    /// @notice Public, view-only helper so tooling / the harness can cross-check
-    ///         a payout without opening a session. Not part of the money path.
-    function previewPayout(bytes32 seed, uint8 mode, uint256 wager)
-        external
-        pure
-        returns (uint256 payout, uint8 kind)
-    {
-        return _resolve(seed, mode, wager);
+    uint256 clean = (wager * _mult(mode)) / WAD;
+    if (_uniformWad(r, 2) < _bonusChance(mode)) {
+      return ((clean * _bonusFactor(mode)) / WAD, 3); // double grab
     }
+    return (clean, 2); // clean grab
+  }
 
-    // =================================================================
-    //  ICasinoGameV2 surface  (names per sdk.chain.wtf docs — verify shapes)
-    // =================================================================
+  function _mode(bytes calldata gameData) internal pure returns (uint8 m) {
+    m = abi.decode(gameData, (uint8));
+    require(m <= MODE_VAULT, "claw: bad mode");
+  }
 
-    struct Caps { uint256 minWager; uint256 maxWager; }
+  // ================================================================ ICasinoGameV2
 
-    /// @dev Betting limits the host enforces before opening a session.
-    function quoteCaps() external pure returns (Caps memory) {
-        return Caps({ minWager: MIN_WAGER, maxWager: MAX_WAGER });
-    }
+  function quoteCaps(uint256 wager, bytes calldata gameData)
+    external
+    pure
+    returns (uint256 maxEscrowStake, uint256 maxReservedProfit)
+  {
+    uint8 m = _mode(gameData);
+    maxEscrowStake = wager; // escrow never grows mid-round
+    uint256 maxPayout = (wager * _maxMultWad(m)) / WAD;
+    maxReservedProfit = maxPayout > wager ? maxPayout - wager : 0;
+  }
 
-    /// @dev Max exposure the game can create for a given wager = the largest
-    ///      multiple any mode can pay (VAULT: 4.526 * 3 = 13.578x).
-    function quoteRiskParams(uint256 wager) external pure returns (uint256 maxPayout) {
-        uint256 p = wager * _mult(MODE_VAULT) / WAD;
-        p = p * _bonusFactor(MODE_VAULT) / WAD;
-        return p;
-    }
+  function quoteRiskParams(uint256 wager, bytes calldata gameData)
+    external
+    pure
+    returns (
+      uint256 maxPayout,
+      uint256 probabilityWad,
+      uint256 expectedPayout,
+      uint256 subJackpotVarianceScaled
+    )
+  {
+    uint8 m = _mode(gameData);
+    maxPayout = (wager * _maxMultWad(m)) / WAD;
+    // Probability of a real win (clean grab or better) = grab * (1 - slip).
+    // A conservative binary-VaR input; not heavy-tail (max mult 13.578x < 100x).
+    probabilityWad = (_grab(m) * (WAD - _slip(m))) / WAD;
+    expectedPayout = (wager * _rtpWad(m)) / WAD;
+    subJackpotVarianceScaled = 0;
+  }
 
-    /// @dev Decode + validate the player's pre-draw choice. `action` is the
-    ///      payload the frontend sends via hostApi.openSession({ action }).
-    ///      Layout here: abi.encode(uint8 mode). One-shot game: no further moves.
-    function onSessionStart(uint256 wager, bytes calldata action)
-        external
-        pure
-        returns (bool needsRandomness, bool needsPlayerAction)
-    {
-        require(wager >= MIN_WAGER && wager <= MAX_WAGER, "wager out of caps");
-        uint8 mode = abi.decode(action, (uint8));
-        require(mode <= MODE_VAULT, "bad mode");
-        return (true, false); // needs one VRF draw, no multi-step actions
-    }
+  function onSessionStart(SessionContext calldata ctx)
+    external
+    pure
+    returns (StepResult memory)
+  {
+    uint8 m = _mode(ctx.gameData);
+    uint256 maxPayout = (ctx.wagerBase * _maxMultWad(m)) / WAD;
+    return
+      StepResult({
+        newGameState: bytes(""),
+        escrowDelta: int256(0), // the host already escrowed the wager
+        reservedProfitDelta: int256(maxPayout > ctx.wagerBase ? maxPayout - ctx.wagerBase : 0),
+        nextPhase: SessionPhase.WAITING_RANDOMNESS,
+        requestRandomnessNow: true,
+        payout: 0
+      });
+  }
 
-    /// @dev No mid-round moves in CLAW. Present to satisfy the interface.
-    function onPlayerAction(bytes calldata) external pure returns (bool stillNeedsRandomness) {
-        revert("claw: no player actions");
-    }
+  function onRandomness(SessionContext calldata ctx, bytes32 randomness)
+    external
+    pure
+    returns (StepResult memory)
+  {
+    uint8 m = _mode(ctx.gameData);
+    (uint256 payout, ) = _play(randomness, m, ctx.wagerBase);
+    return
+      StepResult({
+        newGameState: abi.encode(randomness), // guest reads the word back from gameState
+        escrowDelta: int256(0),
+        reservedProfitDelta: int256(0), // reserve is released when the session finalizes
+        nextPhase: SessionPhase.SETTLED,
+        requestRandomnessNow: false,
+        payout: payout
+      });
+  }
 
-    /// @dev The VRF callback. `seed` is the verifiable randomness for this play,
-    ///      `wager` the locked stake, `context` carries the chosen mode
-    ///      (abi.encode(uint8)). Returns the amount to pay the player.
-    function onRandomness(bytes32 seed, uint256 wager, bytes calldata context)
-        external
-        pure
-        returns (uint256 payout)
-    {
-        uint8 mode = abi.decode(context, (uint8));
-        (payout, ) = _resolve(seed, mode, wager);
-        return payout;
-    }
+  function onPlayerAction(SessionContext calldata, bytes calldata)
+    external
+    pure
+    returns (StepResult memory)
+  {
+    revert("claw: no player actions");
+  }
+
+  function quoteForfeitPayout(SessionContext calldata)
+    external
+    pure
+    returns (uint256)
+  {
+    return 0; // one randomness step, nothing cashable mid-round
+  }
+
+  /// @notice View helper for tooling / tests — verify any outcome off the money path.
+  function previewPayout(bytes32 randomness, uint8 mode, uint256 wager)
+    external
+    pure
+    returns (uint256 payout, uint8 kind)
+  {
+    require(mode <= MODE_VAULT, "claw: bad mode");
+    return _play(randomness, mode, wager);
+  }
 }

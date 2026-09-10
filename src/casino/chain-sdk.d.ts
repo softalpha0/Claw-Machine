@@ -1,4 +1,7 @@
-// The real types ship with @chain/casino-sdk once you install it in your forked
-// coinflip example. Until then this keeps `tsc --noEmit` happy for the standalone
-// build. Delete this file after wiring the SDK and use its published types.
+// Ambient shims so `tsc --noEmit` passes before @chain/casino-sdk is installed.
+// After you `npm link @chain/casino-sdk` (or add it to package.json pointing at
+// the unzipped SDK), delete this file and use the SDK's published types
+// (`HostApiV1`, `HostSnapshotV1`, `GuestApiV1` from "@chain/casino-sdk/guest").
 declare module "@chain/casino-sdk";
+declare module "@chain/casino-sdk/guest";
+declare module "@chain/casino-sdk/host";

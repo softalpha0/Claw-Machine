@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "gameId": "ClawGame",
+  "defaultLocale": "en",
+  "locales": {
+    "en": {
+      "name": "CLAW",
+      "description": "Provably-fair claw machine. Pick your risk mode, drop the claw, grab the prize. One VRF word decides: grip, slip, or double grab."
+    }
+  },
+  "presentation": {
+    "mode": "full-iframe",
+    "hostPanels": {
+      "openSession": false,
+      "history": false,
+      "status": false
+    }
+  },
+  "capabilities": {
+    "openSession": true,
+    "submitAction": false,
+    "forfeitExpiredSession": false,
+    "cancelStuckRandomness": false,
+    "resize": true
+  }
+}
