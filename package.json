@@ -12,6 +12,7 @@
     "tune": "node scripts/tune.ts"
   },
   "dependencies": {
+    "@chain/casino-sdk": "file:../../Downloads/casino-sdk/casino-sdk",
     "@noble/hashes": "^1.6.1"
   },
   "devDependencies": {

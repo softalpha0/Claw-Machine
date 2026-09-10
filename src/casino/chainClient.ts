@@ -19,8 +19,11 @@
  * The contract (contracts/ClawMachineV2.sol) computes the identical payout on
  * chain — resolve() here only needs the word for kind + prize + animation.
  *
- * Types come from the SDK once it is installed/linked; until then
- * src/casino/chain-sdk.d.ts keeps this `any`-typed so the repo still builds.
+ * The SDK import is `any`-typed on purpose so `npm run dev` works before the
+ * package is linked. Once `npm link @chain/casino-sdk` is done you can tighten
+ * this to `HostApiV1` / `HostSnapshotV1` / `GuestApiV1` from the SDK. If
+ * `npm run build` then reports "Cannot find module '@chain/casino-sdk/guest'",
+ * add a one-line `declare module "@chain/casino-sdk/guest";` d.ts back.
  */
 
 import { resolve, type Outcome } from "../game/outcome.ts";
