@@ -32,11 +32,11 @@ interface Particle {
 
 // virtual design space; everything scales to fit the canvas
 const W = 720;
-const H = 560;
-const RAIL_Y = 96;
-const PARK_X = 120;
-const CHUTE_X = 612;
-const PILE_Y = 452;
+const H = 432;
+const RAIL_Y = 92;
+const PARK_X = 178;
+const CHUTE_X = 610;
+const PILE_Y = 322;
 
 export class ClawMachine {
   private ctx: CanvasRenderingContext2D;
@@ -87,10 +87,15 @@ export class ClawMachine {
   private rebuildPile(): void {
     const pool = PRIZES_BY_MODE[this.mode];
     // Fixed, hand-placed layout so the pile reads as a stable pile, not noise.
+    // Kept clear of the prize chute on the right (x < ~540) and the frame edges.
+    const P = PILE_Y;
     const slots: [number, number][] = [
-      [150, 470], [232, 486], [316, 476], [400, 488], [486, 470], [566, 484],
-      [196, 430], [280, 440], [366, 432], [452, 442], [534, 430],
-      [250, 392], [340, 398], [430, 390],
+      // front row
+      [150, P + 8], [226, P + 14], [302, P + 6], [378, P + 16], [452, P + 4], [520, P + 12],
+      // mid row
+      [188, P - 26], [270, P - 20], [352, P - 28], [434, P - 18], [512, P - 24],
+      // back row
+      [246, P - 58], [332, P - 64], [416, P - 56],
     ];
     this.pile = slots.map(([x, y], i) => {
       const prize = pool[i % pool.length]!;
@@ -455,19 +460,23 @@ export class ClawMachine {
     ctx.fillRect(28, 60, W - 56, H - 96);
 
     // back-wall glow
-    const g2 = ctx.createRadialGradient(W / 2, 200, 20, W / 2, 220, 320);
+    const g2 = ctx.createRadialGradient(W / 2, 170, 20, W / 2, 185, 260);
     g2.addColorStop(0, this.hexA(accent, 0.22));
     g2.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g2;
     ctx.fillRect(28, 60, W - 56, H - 96);
 
-    // rail
-    ctx.strokeStyle = "#2b3350";
-    ctx.lineWidth = 8;
+    // rail + end posts
+    ctx.strokeStyle = "#3c476b";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(60, RAIL_Y);
-    ctx.lineTo(W - 60, RAIL_Y);
+    ctx.moveTo(58, RAIL_Y);
+    ctx.lineTo(W - 58, RAIL_Y);
     ctx.stroke();
+    ctx.fillStyle = "#2b3350";
+    ctx.fillRect(50, RAIL_Y - 12, 12, 24);
+    ctx.fillRect(W - 62, RAIL_Y - 12, 12, 24);
 
     // aim spotlight
     if (this.aimGlow > 0) {
@@ -518,15 +527,15 @@ export class ClawMachine {
     ctx.strokeStyle = "#2b3350";
     ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.roundRect(CHUTE_X - 52, PILE_Y - 6, 104, 96, 10);
+    ctx.roundRect(CHUTE_X - 50, PILE_Y - 10, 100, 62, 10);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.05)";
-    ctx.fillRect(CHUTE_X - 46, PILE_Y, 92, 10);
+    ctx.fillRect(CHUTE_X - 44, PILE_Y - 4, 88, 9);
     ctx.fillStyle = "#8b93b5";
-    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.font = "700 12px system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("PRIZE", CHUTE_X, PILE_Y + 54);
+    ctx.fillText("PRIZE", CHUTE_X, PILE_Y + 32);
   }
 
   private drawRig(ctx: CanvasRenderingContext2D, accent: string): void {

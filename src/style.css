@@ -93,7 +93,7 @@ body {
 }
 #machine {
   width: 100%;
-  aspect-ratio: 72 / 56;
+  aspect-ratio: 72 / 44;
   display: block;
   border-radius: 10px;
 }
