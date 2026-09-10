@@ -333,6 +333,32 @@ $("shelfReset").addEventListener("click", () => {
   }
 });
 
+// sound toggle (persisted)
+const soundBtn = $<HTMLButtonElement>("soundToggle");
+let muted = false;
+try {
+  muted = localStorage.getItem("claw.muted") === "1";
+} catch {
+  /* ignore */
+}
+function applyMuted(): void {
+  sfx.setMuted(muted);
+  soundBtn.textContent = muted ? "🔇" : "🔊";
+  soundBtn.classList.toggle("off", muted);
+  try {
+    localStorage.setItem("claw.muted", muted ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+soundBtn.addEventListener("click", () => {
+  sfx.unlock();
+  muted = !muted;
+  applyMuted();
+  if (!muted) sfx.click();
+});
+applyMuted();
+
 // keyboard: space / enter to drop
 window.addEventListener("keydown", (e) => {
   if ((e.code === "Space" || e.code === "Enter") && document.activeElement?.tagName !== "BUTTON") {

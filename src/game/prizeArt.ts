@@ -18,6 +18,14 @@ function base(ctx: C, x: number, y: number, s: number, color: string, draw: () =
   ctx.strokeStyle = "rgba(15,18,28,0.85)";
   ctx.fillStyle = color;
   draw();
+  // A single small specular highlight, clipped to the glyph's own silhouette
+  // (source-atop) so every prize reads as moulded plastic without per-shape work.
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.beginPath();
+  ctx.ellipse(-22, -26, 18, 11, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
   ctx.restore();
 }
 
@@ -50,14 +58,32 @@ function star(ctx: C, x: number, y: number, r: number, spikes = 5): void {
 }
 
 const DRAW: Record<Prize["shape"], (ctx: C, color: string) => void> = {
-  bear(ctx) {
+  bear(ctx, color) {
+    // arms
+    circle(ctx, -36, 20, 13);
+    circle(ctx, 36, 20, 13);
+    // ears
     circle(ctx, -26, -30, 15);
     circle(ctx, 26, -30, 15);
-    circle(ctx, 0, 6, 40);
+    // head
+    circle(ctx, 0, 4, 40);
+    // snout
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    circle(ctx, 0, 16, 16);
+    ctx.fillStyle = color;
+    // inner ears
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    circle(ctx, -26, -30, 6, true);
+    circle(ctx, 26, -30, 6, true);
+    // face
     ctx.fillStyle = "rgba(15,18,28,0.85)";
-    circle(ctx, -13, 0, 4.5);
-    circle(ctx, 13, 0, 4.5);
-    circle(ctx, 0, 16, 6);
+    circle(ctx, -14, -2, 4.5);
+    circle(ctx, 14, -2, 4.5);
+    circle(ctx, 0, 12, 5);
+    ctx.beginPath();
+    ctx.moveTo(0, 16);
+    ctx.lineTo(0, 22);
+    ctx.stroke();
   },
   star(ctx) {
     star(ctx, 0, 0, 46);
@@ -71,6 +97,10 @@ const DRAW: Record<Prize["shape"], (ctx: C, color: string) => void> = {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    // rosy cheeks
+    ctx.fillStyle = "rgba(255,120,150,0.5)";
+    circle(ctx, -22, 4, 6, true);
+    circle(ctx, 22, 4, 6, true);
     ctx.fillStyle = "rgba(15,18,28,0.85)";
     circle(ctx, -12, -8, 5);
     circle(ctx, 14, -8, 5);
@@ -86,16 +116,22 @@ const DRAW: Record<Prize["shape"], (ctx: C, color: string) => void> = {
   },
   duck(ctx, color) {
     ctx.save();
-    circle(ctx, -6, 4, 34);
-    circle(ctx, 22, -22, 18);
-    ctx.fillStyle = "#f39c12";
+    circle(ctx, -6, 8, 34); // body
+    circle(ctx, 22, -20, 18); // head
+    // wing
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.beginPath();
+    ctx.ellipse(-12, 12, 20, 14, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f7b733";
     blob(ctx, [
-      [34, -24],
-      [56, -18],
-      [34, -12],
+      [34, -22],
+      [58, -16],
+      [34, -10],
     ]);
     ctx.fillStyle = "rgba(15,18,28,0.85)";
-    circle(ctx, 24, -26, 4);
+    circle(ctx, 25, -24, 4);
     ctx.restore();
     void color;
   },

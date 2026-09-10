@@ -51,6 +51,7 @@ export class ClawMachine {
   // animated state
   private carriageX = PARK_X;
   private clawY = RAIL_Y;
+  private sway = 0;           // idle pendulum angle (rad)
   private prong = 0;          // 0 open .. 1 closed
   private zoom = 1;
   private shake = 0;
@@ -127,6 +128,21 @@ export class ClawMachine {
     const dt = Math.min(0.5, (now - this.last) / 1000 || 0);
     this.last = now;
     this.idleT += dt;
+
+    // Attract mode: when nothing is running, the claw lazily trawls the rail
+    // with a lagging pendulum sway and a slow prong "breath".
+    if (!this.busy) {
+      const amp = (W / 2 - PARK_X) * 0.92;
+      const targetX = W / 2 + Math.sin(this.idleT * 0.42) * amp;
+      this.carriageX += (targetX - this.carriageX) * Math.min(1, dt * 2.4);
+      const vel = Math.cos(this.idleT * 0.42) * amp * 0.42;
+      this.sway += (-vel * 0.0011 - this.sway) * Math.min(1, dt * 2.6);
+      this.clawY = RAIL_Y + Math.sin(this.idleT * 1.1) * 1.5;
+      this.prong = 0.1 + Math.sin(this.idleT * 0.8) * 0.03;
+    } else {
+      this.sway += (0 - this.sway) * Math.min(1, dt * 6);
+    }
+
     this.tl?.tick(dt);
     this.updateParticles(dt);
     this.updatePilePhysics(dt);
@@ -539,23 +555,26 @@ export class ClawMachine {
   }
 
   private drawRig(ctx: CanvasRenderingContext2D, accent: string): void {
-    const x = this.carriageX;
-    // carriage
+    const carX = this.carriageX;
+    // the claw hangs from the carriage and lags it while trawling (idle sway)
+    const x = carX + Math.sin(this.sway) * 74;
+    const clawTilt = this.sway * 0.8;
+    // carriage — rides the rail straight, at the carriage x
     ctx.fillStyle = "#3a4467";
     ctx.strokeStyle = "#1c2238";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.roundRect(x - 34, RAIL_Y - 16, 68, 26, 6);
+    ctx.roundRect(carX - 34, RAIL_Y - 16, 68, 26, 6);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = accent;
-    ctx.fillRect(x - 26, RAIL_Y - 11, 52, 5);
+    ctx.fillRect(carX - 26, RAIL_Y - 11, 52, 5);
 
-    // cable
+    // cable — from the carriage down to the (possibly swayed) claw
     ctx.strokeStyle = "#6b7599";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(x, RAIL_Y + 8);
+    ctx.moveTo(carX, RAIL_Y + 8);
     ctx.lineTo(x, this.clawY - 14);
     ctx.stroke();
 
@@ -574,6 +593,7 @@ export class ClawMachine {
     // claw
     ctx.save();
     ctx.translate(x, this.clawY);
+    ctx.rotate(clawTilt);
     // hub
     ctx.fillStyle = "#c9d2f0";
     ctx.strokeStyle = "#1c2238";
