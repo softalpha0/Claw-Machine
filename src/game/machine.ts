@@ -21,6 +21,8 @@ interface PileItem {
   x: number; y: number; rot: number; scale: number;
   vx: number; vy: number; vr: number;
   grabbed: boolean;
+  squashT: number;  // 0..1, decays after a landing impact -> a brief squish
+  wigPhase: number; // per-item phase offset for the idle micro-wiggle
 }
 
 interface Particle {
@@ -53,6 +55,7 @@ export class ClawMachine {
   private clawY = RAIL_Y;
   private sway = 0;           // idle pendulum angle (rad)
   private prong = 0;          // 0 open .. 1 closed
+  private clawSquash = 0;     // 0..1, decays after the grab impact -> a brief squish
   private zoom = 1;
   private shake = 0;
   private held: PileItem[] = [];
@@ -106,6 +109,8 @@ export class ClawMachine {
         scale: 1,
         vx: 0, vy: 0, vr: 0,
         grabbed: false,
+        squashT: 0,
+        wigPhase: (i * 2.31) % (Math.PI * 2),
       };
     });
   }
@@ -147,6 +152,7 @@ export class ClawMachine {
     this.updateParticles(dt);
     this.updatePilePhysics(dt);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 60);
+    if (this.clawSquash > 0) this.clawSquash = Math.max(0, this.clawSquash - dt * 6);
     if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 2.2);
     if (this.aimGlow > 0 && (!this.tl || !this.tl.running)) this.aimGlow = Math.max(0, this.aimGlow - dt * 2);
     if (this.banner) {
@@ -199,7 +205,7 @@ export class ClawMachine {
       onEnter: () => { this.onBeat("grab", o); },
       update: (t) => {
         this.prong = lerp(0.15, 1, easeOut(t));
-        if (t > 0.6 && this.shake < 3) this.shake = 4;
+        if (t > 0.6 && this.shake < 3) { this.shake = 4; this.clawSquash = 1; }
       },
       onExit: () => {
         if (o.kind !== "whiff") {
@@ -411,17 +417,20 @@ export class ClawMachine {
   private updatePilePhysics(dt: number): void {
     for (const it of this.pile) {
       if (it.grabbed || it.scale === 0) continue;
+      if (it.squashT > 0) it.squashT = Math.max(0, it.squashT - dt * 4.5);
       if (it.vy !== 0 || it.vx !== 0 || it.vr !== 0) {
         it.vy += 1400 * dt;
         it.x += it.vx * dt;
         it.y += it.vy * dt;
         it.rot += it.vr * dt;
-        const rest = PILE_Y + (Math.random() * 0 + 8);
+        const rest = PILE_Y + 8;
         if (it.y >= rest) {
+          const impact = Math.abs(it.vy);
           it.y = rest;
           it.vy *= -0.28;
           it.vx *= 0.5;
           it.vr *= 0.5;
+          if (impact > 50) it.squashT = Math.min(1, impact / 260);
           if (Math.abs(it.vy) < 12) { it.vy = 0; it.vx = 0; it.vr = 0; }
         }
       }
@@ -482,6 +491,31 @@ export class ClawMachine {
     ctx.fillStyle = g2;
     ctx.fillRect(28, 60, W - 56, H - 96);
 
+    // drifting bokeh — distant arcade lights, so the empty air over the pile
+    // never reads as flat/dead. Clipped to the interior so it never bleeds
+    // past the frame.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(28, 60, W - 56, H - 96);
+    ctx.clip();
+    const bokehColors = [accent, "#ff8fb3", "#7fe3d0", "#ffd24a"];
+    for (let i = 0; i < 7; i++) {
+      const speed = 0.06 + (i % 3) * 0.03;
+      const phase = i * 1.7;
+      const bx = W / 2 + Math.sin(this.idleT * speed + phase) * (200 + i * 12);
+      const by = 130 + Math.cos(this.idleT * speed * 0.8 + phase) * 55 + (i % 2) * 40;
+      const r = 26 + (i % 3) * 10;
+      const pulse = 0.5 + 0.5 * Math.sin(this.idleT * 0.3 + phase);
+      const bg = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+      bg.addColorStop(0, this.hexA(bokehColors[i % bokehColors.length]!, 0.1 + pulse * 0.06));
+      bg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
     // rail + end posts
     ctx.strokeStyle = "#3c476b";
     ctx.lineWidth = 7;
@@ -524,10 +558,14 @@ export class ClawMachine {
     for (const it of ordered) {
       if (it.grabbed || it.scale === 0) continue;
       const bob = Math.sin(this.idleT * 2 + it.x * 0.05) * 1.6;
+      // a tiny idle wiggle so the pile never looks perfectly frozen
+      const wiggle = Math.sin(this.idleT * 0.5 + it.wigPhase) * 0.03;
       ctx.save();
       ctx.translate(it.x, it.y + bob);
-      ctx.rotate(it.rot);
-      ctx.scale(it.scale, it.scale);
+      ctx.rotate(it.rot + wiggle);
+      // squash & stretch from a fresh landing, settling back to normal
+      const sq = easeOut(it.squashT);
+      ctx.scale(it.scale * (1 + sq * 0.22), it.scale * (1 - sq * 0.28));
       // contact shadow
       ctx.fillStyle = "rgba(0,0,0,0.25)";
       ctx.beginPath();
@@ -594,6 +632,9 @@ export class ClawMachine {
     ctx.save();
     ctx.translate(x, this.clawY);
     ctx.rotate(clawTilt);
+    // squash & stretch on the grab impact — wide and short for an instant, then settles
+    const sq = easeOut(this.clawSquash);
+    ctx.scale(1 + sq * 0.18, 1 - sq * 0.22);
     // hub
     ctx.fillStyle = "#c9d2f0";
     ctx.strokeStyle = "#1c2238";
@@ -692,13 +733,26 @@ export class ClawMachine {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("C L A W", W / 2, 36);
-    // bulbs
-    for (let i = 0; i < 14; i++) {
-      const t = i / 13;
-      ctx.fillStyle = i % 2 ? "#fff6cf" : "#ffd24a";
+    // bulbs — a chasing block of light runs the marquee, like a real cabinet
+    const N = 14;
+    const chase = (this.idleT * 5.5) % N;
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const dist = Math.min((i - chase + N) % N, (chase - i + N) % N);
+      const glow = Math.max(0, 1 - dist / 3.2);
+      ctx.save();
+      const cx = W / 2 - 150 + t * 300;
+      if (glow > 0.05) {
+        ctx.shadowColor = "#ffd24a";
+        ctx.shadowBlur = 8 * glow;
+      }
+      ctx.fillStyle = glow > 0.05
+        ? `rgba(255, ${Math.round(214 + glow * 30)}, ${Math.round(140 + glow * 110)}, 1)`
+        : "rgba(255,246,207,0.3)";
       ctx.beginPath();
-      ctx.arc(W / 2 - 150 + t * 300, 8, 3.4, 0, Math.PI * 2);
+      ctx.arc(cx, 8, 3.4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
   }
 
