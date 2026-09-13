@@ -12,6 +12,7 @@ import { Collection } from "./game/collection.ts";
 import { sfx } from "./game/audio.ts";
 import { mountJamWidget } from "./jam/widget.ts";
 import { MODE_IMAGE } from "./game/modeArt.ts";
+import { PRIZE_IMAGE } from "./game/prizeImages.ts";
 import type { CasinoClient } from "./casino/client.ts";
 import { MockClient } from "./casino/mockClient.ts";
 
@@ -308,12 +309,22 @@ function renderShelf(highlightKey?: string): void {
     rarity.style.background = RARITY_COLOR[prize.rarity];
     slot.appendChild(rarity);
 
+    // vector glyph as a backing layer — always present, never fails
     const cv = document.createElement("canvas");
     cv.width = 96;
     cv.height = 96;
     const cx = cv.getContext("2d")!;
     drawPrize(cx, prize, 48, 50, 74);
     slot.appendChild(cv);
+
+    // AI-generated photo on top; falls back to the vector glyph underneath
+    // if it's missing or fails to load
+    const photo = document.createElement("img");
+    photo.className = "slot-photo";
+    photo.alt = "";
+    photo.src = PRIZE_IMAGE[prize.key]!;
+    photo.onerror = () => photo.remove();
+    slot.appendChild(photo);
 
     if (caught && entry && entry.count > 1) {
       const c = document.createElement("span");

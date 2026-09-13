@@ -277,6 +277,12 @@ body {
 }
 .slot canvas { width: 78%; height: 78%; }
 .slot.locked canvas { opacity: 0.14; filter: grayscale(1); }
+.slot-photo {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.slot.locked .slot-photo { opacity: 0.14; filter: grayscale(1); }
 .slot .count {
   position: absolute;
   right: 3px; bottom: 2px;
