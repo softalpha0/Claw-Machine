@@ -131,25 +131,29 @@ src/game/outcome.ts           resolve(seed, mode, bet) -> Outcome   (game + mont
 src/game/prizes.ts            the 30-prize catalogue
 src/game/machine.ts           canvas rendering + the reveal timeline + idle attract mode
 src/game/prizeArt.ts          hand-authored vector glyphs
-src/game/audio.ts             synthesised SFX (WebAudio, no audio files)
+src/game/audio.ts             synthesised SFX (WebAudio) + the master bus / reverb / compressor
+src/game/music.ts             looping background track, wired to the same mute toggle
 src/game/collection.ts        the prize shelf (localStorage, seed-stamped)
 src/casino/client.ts          CasinoClient interface
 src/casino/mockClient.ts      standalone demo client
 src/casino/chainClient.ts     @chain/casino-sdk/guest bridge
 src/jam/widget.ts             footer credit (the required script tag is in index.html)
 src/main.ts                   HUD + orchestration
+public/audio/arcade-loop.mp3  the one non-synthesised asset — background music
 ```
 
 ## Tech
 
-Vite + TypeScript, a single `<canvas>` for the machine, WebAudio for every sound,
-`@noble/hashes` for SHA-256. No framework, no bitmap assets, no audio files — the
-production bundle is ~15 KB gzipped and loads instantly.
+Vite + TypeScript, a single `<canvas>` for the machine, WebAudio for every sound
+effect (a compressor + a synthesised room reverb glue them together), plus one
+real looping background track. `@noble/hashes` for SHA-256. No framework, no
+bitmap art — the production bundle (excluding the music file) is ~17 KB gzipped
+and loads instantly; the track streams in afterward.
 
 ## Credits
 
 Built with AI tooling (allowed and encouraged by the jam). All art is
-hand-authored vector drawn on `<canvas>`; all sound is synthesised — no generated
-bitmaps, no audio files.
+hand-authored vector drawn on `<canvas>`. Every sound effect is synthesised;
+the one exception is the looping background track in `public/audio/`.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

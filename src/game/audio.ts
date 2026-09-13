@@ -1,7 +1,10 @@
 /**
- * All sound is synthesised with WebAudio — no audio files, so the bundle stays
- * tiny and the game loads instantly. Call sfx.unlock() from the first user
- * gesture (browsers block audio until then).
+ * All SFX are synthesised with WebAudio — no audio files, so they stay tiny
+ * and load instantly. The one exception is the looping background track
+ * (`music.ts`, a real recorded loop) which `unlock()` also starts, since a
+ * synthesised ambience never quite reads as "a room" the way a real track
+ * does. Call sfx.unlock() from the first user gesture (browsers block audio
+ * until then).
  *
  * Signal chain: every voice -> its own gain -> { master bus, reverb send }.
  * master bus -> compressor -> destination. reverb send -> convolver (a
@@ -9,6 +12,8 @@
  * what keep layered synth tones from reading as bare oscillator beeps — a
  * cheap "produced in a room" quality instead of a dry test tone.
  */
+
+import { music } from "./music.ts";
 
 type Ctx = AudioContext;
 
@@ -29,10 +34,10 @@ class Sfx {
   private ac: Ctx | null = null;
   private master: GainNode | null = null;
   private reverbSend: GainNode | null = null;
-  private ambienceOn = false;
   muted = false;
 
   unlock(): void {
+    music.unlock();
     if (this.ac) {
       void this.ac.resume();
       return;
@@ -62,12 +67,11 @@ class Sfx {
     reverbSend.connect(convolver);
     convolver.connect(master);
     this.reverbSend = reverbSend;
-
-    this.startAmbience();
   }
 
   setMuted(m: boolean): void {
     this.muted = m;
+    music.setMuted(m);
     if (this.master) this.master.gain.value = m ? 0 : 0.9;
   }
 
@@ -229,91 +233,6 @@ class Sfx {
     osc.stop(t0 + dur + 0.03);
 
     this.noise(dur, { vol: vol * 0.35, hp: 600, lp: 3000, delay, wet: 0.05 });
-  }
-
-  /**
-   * A continuous arcade-room bed — meant to feel like standing in a small
-   * arcade, not a lone hum. Three layers:
-   *   1. a low pad with a faster, two-LFO "breathing" filter sweep
-   *   2. a quiet wide mid-register shimmer (two voices panned hard apart)
-   *   3. frequent, varied, panned "other machines" chatter — plain blips,
-   *      metallic coin-plinks, and the occasional tiny idle jingle
-   */
-  private startAmbience(): void {
-    if (this.ambienceOn || !this.ac || !this.master) return;
-    this.ambienceOn = true;
-    const ac = this.ac;
-
-    // 1. low pad
-    const bed = ac.createGain();
-    bed.gain.value = 0.032;
-    const filt = ac.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.frequency.value = 420;
-    filt.Q.value = 0.8;
-    filt.connect(bed);
-    this.route(bed, 0.25);
-    for (const [f, det] of [[55, 0], [55, 7]] as [number, number][]) {
-      const osc = ac.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = f;
-      osc.detune.value = det;
-      osc.connect(filt);
-      osc.start();
-    }
-    // two summed LFOs (not one) so the filter "breathes" rather than
-    // metronomically ticks back and forth
-    for (const [rate, depth] of [[0.11, 150], [0.29, 60]] as [number, number][]) {
-      const lfo = ac.createOscillator();
-      lfo.frequency.value = rate;
-      const lfoGain = ac.createGain();
-      lfoGain.gain.value = depth;
-      lfo.connect(lfoGain).connect(filt.frequency);
-      lfo.start();
-    }
-
-    // 2. wide mid shimmer — two voices panned hard apart, so the room has width
-    for (const [f, pan] of [[221, -0.55], [219, 0.55]] as [number, number][]) {
-      const osc = ac.createOscillator();
-      osc.type = "triangle";
-      osc.frequency.value = f;
-      const shimmerFilt = ac.createBiquadFilter();
-      shimmerFilt.type = "bandpass";
-      shimmerFilt.frequency.value = 700;
-      shimmerFilt.Q.value = 0.6;
-      const g = ac.createGain();
-      g.gain.value = 0.014;
-      const p = ac.createStereoPanner();
-      p.pan.value = pan;
-      osc.connect(shimmerFilt).connect(g).connect(p);
-      this.route(p, 0.35);
-      osc.start();
-    }
-
-    // 3. other machines — the arcade isn't silent between your own drops
-    const scheduleChatter = () => {
-      if (!this.ambienceOn) return;
-      if (!this.muted) {
-        const pan = Math.random() * 1.6 - 0.8;
-        const roll = Math.random();
-        if (roll < 0.15) {
-          // a tiny 3-note idle jingle from a nearby machine
-          const root = 440 + Math.random() * 300;
-          [1, 1.26, 1.5].forEach((mult, i) =>
-            this.tone(root * mult, 0.16, {
-              type: "triangle", vol: 0.02, delay: i * 0.1, attack: 0.02, filterFreq: 2200, wet: 0.45, pan,
-            }),
-          );
-        } else if (roll < 0.4) {
-          this.metal(1200 + Math.random() * 900, 0.09, { vol: 0.028, delay: 0 });
-        } else {
-          const f = 450 + Math.random() * 1400;
-          this.tone(f, 0.22, { type: "sine", vol: 0.024, attack: 0.04, filterFreq: 2600, wet: 0.4, pan });
-        }
-      }
-      window.setTimeout(scheduleChatter, 1200 + Math.random() * 2200);
-    };
-    window.setTimeout(scheduleChatter, 1500);
   }
 
   click(): void {
