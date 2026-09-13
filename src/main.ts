@@ -11,6 +11,7 @@ import { ClawMachine, type Beat } from "./game/machine.ts";
 import { Collection } from "./game/collection.ts";
 import { sfx } from "./game/audio.ts";
 import { mountJamWidget } from "./jam/widget.ts";
+import { MODE_IMAGE } from "./game/modeArt.ts";
 import type { CasinoClient } from "./casino/client.ts";
 import { MockClient } from "./casino/mockClient.ts";
 
@@ -76,6 +77,7 @@ function buildModes(): void {
     btn.style.setProperty("--m-accent", m.accent);
     btn.setAttribute("aria-selected", String(id === mode));
     btn.innerHTML =
+      `<img class="m-icon" src="${MODE_IMAGE[id]}" alt="" width="52" height="52" />` +
       `<div class="m-name">${m.label}</div>` +
       `<div class="m-odds">${Math.round(m.grab * 100)}% grab · up to ${maxWinX(m).toFixed(1)}×</div>`;
     btn.addEventListener("click", () => {

@@ -149,6 +149,15 @@ body {
   background: color-mix(in srgb, var(--m-accent, var(--accent)) 16%, var(--panel-2));
   box-shadow: 0 0 0 1px var(--m-accent, var(--accent)) inset;
 }
+.mode .m-icon {
+  width: 52px; height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  margin-bottom: 6px;
+  border: 1.5px solid var(--line);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15) inset;
+}
+.mode[aria-selected="true"] .m-icon { border-color: var(--m-accent, var(--accent)); }
 .mode .m-name { font-weight: 800; font-size: 12.5px; letter-spacing: 0.5px; }
 .mode .m-odds { color: var(--ink-dim); font-size: 11px; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .mode[aria-selected="true"] .m-odds { color: var(--ink); }
