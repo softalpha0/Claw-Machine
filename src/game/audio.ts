@@ -100,12 +100,13 @@ class Sfx {
       filterSweepTo?: number;
       filterQ?: number;
       wet?: number;
+      pan?: number; // -1..1, for ambience voices that should sit off-centre
     } = {},
   ): void {
     if (!this.ac || !this.master || this.muted) return;
     const {
       type = "square", vol = 0.25, slideTo, delay = 0, attack = 0.005,
-      detune, filterFreq, filterSweepTo, filterQ = 1, wet = 0.12,
+      detune, filterFreq, filterSweepTo, filterQ = 1, wet = 0.12, pan,
     } = opts;
     const t0 = this.t + delay;
     const g = this.ac.createGain();
@@ -122,6 +123,12 @@ class Sfx {
       f.frequency.exponentialRampToValueAtTime(Math.max(40, filterSweepTo ?? filterFreq), t0 + dur);
       g.connect(f);
       out = f;
+    }
+    if (pan != null) {
+      const p = this.ac.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      out.connect(p);
+      out = p;
     }
     this.route(out, wet);
 
@@ -225,25 +232,28 @@ class Sfx {
   }
 
   /**
-   * A very quiet, continuous arcade-room bed: two detuned low oscillators
-   * through a slowly wandering lowpass filter, plus occasional soft, distant
-   * "blip" tones — the room the machine sits in, not silence between drops.
+   * A continuous arcade-room bed — meant to feel like standing in a small
+   * arcade, not a lone hum. Three layers:
+   *   1. a low pad with a faster, two-LFO "breathing" filter sweep
+   *   2. a quiet wide mid-register shimmer (two voices panned hard apart)
+   *   3. frequent, varied, panned "other machines" chatter — plain blips,
+   *      metallic coin-plinks, and the occasional tiny idle jingle
    */
   private startAmbience(): void {
     if (this.ambienceOn || !this.ac || !this.master) return;
     this.ambienceOn = true;
     const ac = this.ac;
 
+    // 1. low pad
     const bed = ac.createGain();
-    bed.gain.value = 0.028;
+    bed.gain.value = 0.032;
     const filt = ac.createBiquadFilter();
     filt.type = "lowpass";
-    filt.frequency.value = 400;
-    filt.Q.value = 0.7;
+    filt.frequency.value = 420;
+    filt.Q.value = 0.8;
     filt.connect(bed);
     this.route(bed, 0.25);
-
-    for (const [f, det] of [[55, 0], [55, 6]] as [number, number][]) {
+    for (const [f, det] of [[55, 0], [55, 7]] as [number, number][]) {
       const osc = ac.createOscillator();
       osc.type = "sine";
       osc.frequency.value = f;
@@ -251,22 +261,59 @@ class Sfx {
       osc.connect(filt);
       osc.start();
     }
-    const lfo = ac.createOscillator();
-    lfo.frequency.value = 0.05;
-    const lfoGain = ac.createGain();
-    lfoGain.gain.value = 180;
-    lfo.connect(lfoGain).connect(filt.frequency);
-    lfo.start();
+    // two summed LFOs (not one) so the filter "breathes" rather than
+    // metronomically ticks back and forth
+    for (const [rate, depth] of [[0.11, 150], [0.29, 60]] as [number, number][]) {
+      const lfo = ac.createOscillator();
+      lfo.frequency.value = rate;
+      const lfoGain = ac.createGain();
+      lfoGain.gain.value = depth;
+      lfo.connect(lfoGain).connect(filt.frequency);
+      lfo.start();
+    }
 
-    const scheduleBlip = () => {
+    // 2. wide mid shimmer — two voices panned hard apart, so the room has width
+    for (const [f, pan] of [[221, -0.55], [219, 0.55]] as [number, number][]) {
+      const osc = ac.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = f;
+      const shimmerFilt = ac.createBiquadFilter();
+      shimmerFilt.type = "bandpass";
+      shimmerFilt.frequency.value = 700;
+      shimmerFilt.Q.value = 0.6;
+      const g = ac.createGain();
+      g.gain.value = 0.014;
+      const p = ac.createStereoPanner();
+      p.pan.value = pan;
+      osc.connect(shimmerFilt).connect(g).connect(p);
+      this.route(p, 0.35);
+      osc.start();
+    }
+
+    // 3. other machines — the arcade isn't silent between your own drops
+    const scheduleChatter = () => {
       if (!this.ambienceOn) return;
       if (!this.muted) {
-        const f = 500 + Math.random() * 1200;
-        this.tone(f, 0.25, { type: "sine", vol: 0.015, attack: 0.05, wet: 0.4 });
+        const pan = Math.random() * 1.6 - 0.8;
+        const roll = Math.random();
+        if (roll < 0.15) {
+          // a tiny 3-note idle jingle from a nearby machine
+          const root = 440 + Math.random() * 300;
+          [1, 1.26, 1.5].forEach((mult, i) =>
+            this.tone(root * mult, 0.16, {
+              type: "triangle", vol: 0.02, delay: i * 0.1, attack: 0.02, filterFreq: 2200, wet: 0.45, pan,
+            }),
+          );
+        } else if (roll < 0.4) {
+          this.metal(1200 + Math.random() * 900, 0.09, { vol: 0.028, delay: 0 });
+        } else {
+          const f = 450 + Math.random() * 1400;
+          this.tone(f, 0.22, { type: "sine", vol: 0.024, attack: 0.04, filterFreq: 2600, wet: 0.4, pan });
+        }
       }
-      window.setTimeout(scheduleBlip, 3500 + Math.random() * 6000);
+      window.setTimeout(scheduleChatter, 1200 + Math.random() * 2200);
     };
-    window.setTimeout(scheduleBlip, 4000);
+    window.setTimeout(scheduleChatter, 1500);
   }
 
   click(): void {
