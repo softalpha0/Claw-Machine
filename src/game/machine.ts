@@ -68,6 +68,11 @@ export class ClawMachine {
 
   onBeat: (b: Beat, o: Outcome) => void = () => {};
 
+  // photographed/AI-generated backdrop behind the pile; falls back to the flat
+  // gradient below until it loads (or forever, if it fails to)
+  private backdrop = new Image();
+  private backdropReady = false;
+
   constructor(private canvas: HTMLCanvasElement) {
     const c = canvas.getContext("2d");
     if (!c) throw new Error("no 2d context");
@@ -75,6 +80,8 @@ export class ClawMachine {
     this.resize();
     window.addEventListener("resize", () => this.resize());
     this.setMode("plush");
+    this.backdrop.onload = () => (this.backdropReady = true);
+    this.backdrop.src = new URL("images/cabinet-backdrop.jpg", document.baseURI).href;
     this.loop(performance.now());
   }
 
@@ -478,11 +485,34 @@ export class ClawMachine {
   }
 
   private drawCabinetBack(ctx: CanvasRenderingContext2D, accent: string): void {
-    const grd = ctx.createLinearGradient(0, 60, 0, H);
-    grd.addColorStop(0, "#141a2b");
-    grd.addColorStop(1, "#0c1020");
-    ctx.fillStyle = grd;
-    ctx.fillRect(28, 60, W - 56, H - 96);
+    const boxX = 28, boxY = 60, boxW = W - 56, boxH = H - 96;
+
+    if (this.backdropReady) {
+      // cover-fit the backdrop photo into the interior, clipped to it
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(boxX, boxY, boxW, boxH);
+      ctx.clip();
+      const iw = this.backdrop.naturalWidth, ih = this.backdrop.naturalHeight;
+      const scale = Math.max(boxW / iw, boxH / ih);
+      const dw = iw * scale, dh = ih * scale;
+      ctx.drawImage(this.backdrop, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
+      ctx.restore();
+    } else {
+      const grd = ctx.createLinearGradient(0, 60, 0, H);
+      grd.addColorStop(0, "#141a2b");
+      grd.addColorStop(1, "#0c1020");
+      ctx.fillStyle = grd;
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+    }
+
+    // a consistent dark wash over the photo (or the fallback gradient) so the
+    // pile/claw/HUD keep their contrast no matter what the backdrop looks like
+    const wash = ctx.createLinearGradient(0, boxY, 0, H);
+    wash.addColorStop(0, "rgba(10,13,24,0.55)");
+    wash.addColorStop(1, "rgba(8,10,18,0.82)");
+    ctx.fillStyle = wash;
+    ctx.fillRect(boxX, boxY, boxW, boxH);
 
     // back-wall glow
     const g2 = ctx.createRadialGradient(W / 2, 170, 20, W / 2, 185, 260);

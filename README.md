@@ -139,21 +139,25 @@ src/casino/mockClient.ts      standalone demo client
 src/casino/chainClient.ts     @chain/casino-sdk/guest bridge
 src/jam/widget.ts             footer credit (the required script tag is in index.html)
 src/main.ts                   HUD + orchestration
-public/audio/arcade-loop.mp3  the one non-synthesised asset — background music
+public/audio/arcade-loop.mp3        background music (a real recorded loop)
+public/images/cabinet-backdrop.jpg  AI-generated cabinet backdrop, drawn behind the pile
 ```
 
 ## Tech
 
 Vite + TypeScript, a single `<canvas>` for the machine, WebAudio for every sound
 effect (a compressor + a synthesised room reverb glue them together), plus one
-real looping background track. `@noble/hashes` for SHA-256. No framework, no
-bitmap art — the production bundle (excluding the music file) is ~17 KB gzipped
-and loads instantly; the track streams in afterward.
+real looping background track and one AI-generated backdrop image behind the
+pile. `@noble/hashes` for SHA-256. No framework — the production bundle
+(excluding the two media assets) is ~17 KB gzipped and loads instantly; the
+track and backdrop stream in afterward.
 
 ## Credits
 
-Built with AI tooling (allowed and encouraged by the jam). All art is
-hand-authored vector drawn on `<canvas>`. Every sound effect is synthesised;
-the one exception is the looping background track in `public/audio/`.
+Built with AI tooling (allowed and encouraged by the jam). Every prize, the
+claw, and the cabinet chrome are hand-authored vector art drawn on `<canvas>`.
+Every sound effect is synthesised. The two exceptions: the looping background
+track (`public/audio/`) and the cabinet backdrop photo (`public/images/`,
+AI-generated via Pollinations.ai).
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
