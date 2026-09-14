@@ -18,7 +18,9 @@
 html, body { margin: 0; padding: 0; }
 body {
   background:
-    radial-gradient(1100px 600px at 50% -10%, #1a2340 0%, rgba(26, 35, 64, 0) 60%),
+    radial-gradient(1100px 600px at 50% -10%, rgba(26, 35, 64, 0.55) 0%, rgba(26, 35, 64, 0) 60%),
+    linear-gradient(180deg, rgba(8, 10, 18, 0.62) 0%, rgba(8, 10, 18, 0.9) 55%, var(--bg) 100%),
+    url("/images/page-bg.jpg") center 35% / cover no-repeat,
     var(--bg);
   color: var(--ink);
   font-family: var(--font);
