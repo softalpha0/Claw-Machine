@@ -218,14 +218,47 @@ body {
 .drop:active { transform: translateY(4px); box-shadow: 0 2px 0 #0e7f94, 0 6px 14px rgba(34, 211, 238, 0.3); }
 .drop:disabled { filter: grayscale(0.7) brightness(0.7); cursor: not-allowed; box-shadow: 0 6px 0 #12303a; }
 
-.odds {
+.odds { font-variant-numeric: tabular-nums; }
+.odds-head {
   color: var(--ink-dim);
   font-size: 12px;
   text-align: center;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.5;
+  margin-bottom: 10px;
 }
-.odds b { color: var(--ink); }
+.odds-head b { color: var(--ink); }
+
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat-grid.secondary { margin-top: 8px; }
+
+.stat-tile {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.stat-tile .stat-value {
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile .stat-label {
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.stat-tile.hi {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-2));
+  box-shadow: 0 0 14px -4px var(--accent);
+}
+.stat-tile.hi .stat-value { color: var(--accent); text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.stat-tile.small { padding: 7px 4px; }
+.stat-tile.small .stat-value { font-size: 13px; }
+.stat-tile.small .stat-label { font-size: 9px; }
 
 .verify { border-top: 1px solid var(--line); padding-top: 10px; }
 .verify summary { cursor: pointer; color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }

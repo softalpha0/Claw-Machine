@@ -139,16 +139,26 @@ function stepBet(dir: 1 | -1): void {
 $("betUp").addEventListener("click", () => stepBet(1));
 $("betDown").addEventListener("click", () => stepBet(-1));
 
+function tile(value: string, label: string, opts: { hi?: boolean; small?: boolean } = {}): string {
+  const cls = ["stat-tile", opts.hi ? "hi" : "", opts.small ? "small" : ""].filter(Boolean).join(" ");
+  return `<div class="${cls}"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+}
+
 function updateOdds(): void {
   const m = MODES[mode];
   const rtp = (theoreticalRtp(m) * 100).toFixed(2);
   $("odds").innerHTML =
-    `<b>${m.label}</b> — ${m.blurb}<br/>` +
-    `grab <b>${(m.grab * 100).toFixed(0)}%</b> · ` +
-    `clean pay <b>${m.mult}×</b> (${fmt(bet * m.mult)}) · ` +
-    `bonus <b>${m.bonusFactor}×</b> that · ` +
-    `slip back <b>${m.consolation}×</b><br/>` +
-    `max win <b>${maxWinX(m).toFixed(2)}×</b> = ${fmt(bet * maxWinX(m))} chUSD · theoretical RTP <b>${rtp}%</b>`;
+    `<div class="odds-head"><b>${m.label}</b> — ${m.blurb}</div>` +
+    `<div class="stat-grid">` +
+    tile(`${(m.grab * 100).toFixed(0)}%`, "grab") +
+    tile(`${maxWinX(m).toFixed(2)}×`, "max win", { hi: true }) +
+    tile(`${rtp}%`, "RTP") +
+    `</div>` +
+    `<div class="stat-grid secondary">` +
+    tile(`${m.mult}×`, "clean pay", { small: true }) +
+    tile(`${m.bonusFactor}×`, "bonus", { small: true }) +
+    tile(`${m.consolation}×`, "slip back", { small: true }) +
+    `</div>`;
 }
 
 // ---- balance -------------------------------------------------
