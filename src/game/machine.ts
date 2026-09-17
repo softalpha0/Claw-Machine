@@ -9,6 +9,7 @@
 import { MODES, type ModeId } from "./config.ts";
 import { PRIZES_BY_MODE, PRIZE_BY_KEY, RARITY_COLOR, type Prize } from "./prizes.ts";
 import { drawPrize } from "./prizeArt.ts";
+import { PRIZE_IMAGE } from "./prizeImages.ts";
 import type { Outcome } from "./outcome.ts";
 import { Timeline, lerp, easeInOut, easeOut, easeIn, bounceOut, clamp01 } from "./anim.ts";
 
@@ -73,6 +74,13 @@ export class ClawMachine {
   private backdrop = new Image();
   private backdropReady = false;
 
+  // real prize photos (same art used on the shelf) drawn in the pile / on the
+  // claw, so the machine isn't the odd one out still showing vector glyphs.
+  // Each loads independently; drawPrizePhoto() falls back to the vector
+  // glyph for any key that hasn't finished loading yet (or never does).
+  private prizePhotos: Record<string, HTMLImageElement> = {};
+  private prizePhotoReady: Record<string, boolean> = {};
+
   constructor(private canvas: HTMLCanvasElement) {
     const c = canvas.getContext("2d");
     if (!c) throw new Error("no 2d context");
@@ -82,7 +90,36 @@ export class ClawMachine {
     this.setMode("plush");
     this.backdrop.onload = () => (this.backdropReady = true);
     this.backdrop.src = new URL("images/cabinet-backdrop.jpg", document.baseURI).href;
+    for (const key of Object.keys(PRIZE_IMAGE)) {
+      const img = new Image();
+      img.onload = () => (this.prizePhotoReady[key] = true);
+      img.src = PRIZE_IMAGE[key]!;
+      this.prizePhotos[key] = img;
+    }
     this.loop(performance.now());
+  }
+
+  /** Draws the real prize photo clipped to a circle, or reports it isn't ready yet. */
+  private drawPrizePhoto(ctx: CanvasRenderingContext2D, key: string, x: number, y: number, size: number): boolean {
+    const img = this.prizePhotos[key];
+    if (!img || !this.prizePhotoReady[key]) return false;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    if (!iw || !ih) return false;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    const scale = Math.max(size / iw, size / ih);
+    const dw = iw * scale, dh = ih * scale;
+    ctx.drawImage(img, x - dw / 2, y - dh / 2, dw, dh);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(15,18,28,0.85)";
+    ctx.stroke();
+    return true;
   }
 
   setMode(mode: ModeId): void {
@@ -601,7 +638,7 @@ export class ClawMachine {
       ctx.beginPath();
       ctx.ellipse(0, 30, 26, 8, 0, 0, Math.PI * 2);
       ctx.fill();
-      drawPrize(ctx, it.prize, 0, 0, 62);
+      if (!this.drawPrizePhoto(ctx, it.prize.key, 0, 0, 62)) drawPrize(ctx, it.prize, 0, 0, 62);
       ctx.restore();
     }
   }
@@ -654,7 +691,7 @@ export class ClawMachine {
       ctx.save();
       ctx.translate(h.x, h.y);
       ctx.rotate(Math.sin(this.idleT * 8) * 0.06 + h.rot);
-      drawPrize(ctx, h.prize, 0, 0, 60);
+      if (!this.drawPrizePhoto(ctx, h.prize.key, 0, 0, 60)) drawPrize(ctx, h.prize, 0, 0, 60);
       ctx.restore();
     }
 
