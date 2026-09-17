@@ -759,7 +759,7 @@ export class ClawMachine {
     ctx.roundRect(W / 2 - 150, 12, 300, 46, 12);
     ctx.fill();
     ctx.fillStyle = "#0c1020";
-    ctx.font = "800 26px 'Arial Black', system-ui, sans-serif";
+    ctx.font = "800 26px 'Orbitron', 'Arial Black', system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("C L A W", W / 2, 36);
@@ -795,7 +795,7 @@ export class ClawMachine {
     ctx.translate(W / 2, 150);
     ctx.scale(pop, pop);
     ctx.globalAlpha = b.life < 0.3 ? b.life / 0.3 : 1;
-    ctx.font = "900 40px 'Arial Black', system-ui, sans-serif";
+    ctx.font = "900 40px 'Orbitron', 'Arial Black', system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 8;
