@@ -25,6 +25,17 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const fmt = (n: number) =>
   n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: n % 1 ? 2 : 0 });
 
+// tiny inline glyphs so stat labels read as HUD icons, not bare text —
+// 2px stroke, rounded caps, matching the thickness of the canvas vector art
+const ICONS: Record<string, string> = {
+  grab: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 2v5.5a2 2 0 0 0 2 2h0"/><path d="M13 2v5.5a2 2 0 0 1-2 2h0"/><path d="M8 9.5v1"/><path d="M8 10.5c-1.8 0-3 1.3-3 3.5h6c0-2.2-1.2-3.5-3-3.5Z"/></svg>`,
+  win: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 9.6 5l3.9.4-2.9 2.6.8 3.8L8 9.8l-3.4 1.9.8-3.8L2.5 5.4 6.4 5Z"/></svg>`,
+  rtp: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 12A5.5 5.5 0 1 1 13.5 12"/><path d="M8 12 10.8 7"/><circle cx="8" cy="12" r="0.9" fill="currentColor" stroke="none"/></svg>`,
+  coin: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5.5"/><path d="M8 5.2v5.6M6.3 6.4c0-.9.8-1.3 1.7-1.3s1.7.5 1.7 1.2c0 1.7-3.4.9-3.4 2.6 0 .7.8 1.2 1.7 1.2s1.7-.4 1.7-1.3" stroke-linecap="round"/></svg>`,
+  bonus: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/><path d="M3.6 3.6l2 2M10.4 10.4l2 2M12.4 3.6l-2 2M5.6 10.4l-2 2"/></svg>`,
+  slip: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5.5h-6a3 3 0 0 0 0 6h1.5"/><path d="M8.5 9 6 11.5 8.5 14"/></svg>`,
+};
+
 // ---- state -----------------------------------------------------------
 let mode: ModeId = DEFAULT_MODE;
 let bet = DEFAULT_BET;
@@ -139,9 +150,10 @@ function stepBet(dir: 1 | -1): void {
 $("betUp").addEventListener("click", () => stepBet(1));
 $("betDown").addEventListener("click", () => stepBet(-1));
 
-function tile(value: string, label: string, opts: { hi?: boolean; small?: boolean } = {}): string {
+function tile(value: string, label: string, opts: { hi?: boolean; small?: boolean; icon?: keyof typeof ICONS } = {}): string {
   const cls = ["stat-tile", opts.hi ? "hi" : "", opts.small ? "small" : ""].filter(Boolean).join(" ");
-  return `<div class="${cls}"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+  const ic = opts.icon ? `<span class="stat-icon">${ICONS[opts.icon]}</span>` : "";
+  return `<div class="${cls}"><div class="stat-value">${value}</div><div class="stat-label">${ic}${label}</div></div>`;
 }
 
 function updateOdds(): void {
@@ -150,14 +162,14 @@ function updateOdds(): void {
   $("odds").innerHTML =
     `<div class="odds-head"><b>${m.label}</b> — ${m.blurb}</div>` +
     `<div class="stat-grid">` +
-    tile(`${(m.grab * 100).toFixed(0)}%`, "grab") +
-    tile(`${maxWinX(m).toFixed(2)}×`, "max win", { hi: true }) +
-    tile(`${rtp}%`, "RTP") +
+    tile(`${(m.grab * 100).toFixed(0)}%`, "grab", { icon: "grab" }) +
+    tile(`${maxWinX(m).toFixed(2)}×`, "max win", { hi: true, icon: "win" }) +
+    tile(`${rtp}%`, "RTP", { icon: "rtp" }) +
     `</div>` +
     `<div class="stat-grid secondary">` +
-    tile(`${m.mult}×`, "clean pay", { small: true }) +
-    tile(`${m.bonusFactor}×`, "bonus", { small: true }) +
-    tile(`${m.consolation}×`, "slip back", { small: true }) +
+    tile(`${m.mult}×`, "clean pay", { small: true, icon: "coin" }) +
+    tile(`${m.bonusFactor}×`, "bonus", { small: true, icon: "bonus" }) +
+    tile(`${m.consolation}×`, "slip back", { small: true, icon: "slip" }) +
     `</div>`;
 }
 
