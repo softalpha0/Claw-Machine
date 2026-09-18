@@ -68,7 +68,7 @@ export const MODES: Record<ModeId, ModeConfig> = {
     mult: 2.175,
     bonusChance: 0.06,
     bonusFactor: 2.0,
-    accent: "#22d3ee",
+    accent: "#2fb8f0",
   },
   vault: {
     id: "vault",
@@ -80,7 +80,7 @@ export const MODES: Record<ModeId, ModeConfig> = {
     mult: 4.526,
     bonusChance: 0.08,
     bonusFactor: 3.0,
-    accent: "#fbbf24",
+    accent: "#ffc928",
   },
 };
 

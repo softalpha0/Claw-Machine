@@ -30,7 +30,12 @@ function makeImpulse(ac: Ctx, seconds: number, decay: number): AudioBuffer {
   return buf;
 }
 
+/** Kenney CC0 samples (public/audio/sfx), layered over the synth voices; synth alone if they fail to load. */
+const SAMPLE_FILES = ["click", "toggle", "prize", "grab", "jackpot", "coin", "handle", "chips-1", "chips-2", "chips-3"] as const;
+type SampleName = (typeof SAMPLE_FILES)[number];
+
 class Sfx {
+  private samples = new Map<SampleName, AudioBuffer>();
   private ac: Ctx | null = null;
   private master: GainNode | null = null;
   private reverbSend: GainNode | null = null;
@@ -67,6 +72,35 @@ class Sfx {
     reverbSend.connect(convolver);
     convolver.connect(master);
     this.reverbSend = reverbSend;
+    void this.loadSamples(ac);
+  }
+
+  private async loadSamples(ac: Ctx): Promise<void> {
+    await Promise.all(
+      SAMPLE_FILES.map(async (name) => {
+        try {
+          const res = await fetch(new URL(`audio/sfx/${name}.ogg`, document.baseURI));
+          if (!res.ok) return;
+          this.samples.set(name, await ac.decodeAudioData(await res.arrayBuffer()));
+        } catch {
+          /* synth voice covers it */
+        }
+      }),
+    );
+  }
+
+  private sample(name: SampleName, vol = 1, delay = 0, rate = 1): void {
+    const ac = this.ac;
+    const buf = this.samples.get(name);
+    if (!ac || !this.master || !buf) return;
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ac.createGain();
+    g.gain.value = vol;
+    src.connect(g);
+    g.connect(this.master);
+    src.start(ac.currentTime + delay);
   }
 
   setMuted(m: boolean): void {
@@ -236,12 +270,15 @@ class Sfx {
   }
 
   click(): void {
+    this.sample("click", 0.7);
     this.tone(520, 0.05, { type: "square", vol: 0.12, filterFreq: 3000 });
   }
   coin(): void {
+    this.sample("coin", 0.6, 0, 0.95 + Math.random() * 0.15);
     this.metal(1400, 0.08, { vol: 0.13 });
   }
   toggle(): void {
+    this.sample("toggle", 0.6);
     this.tone(300, 0.06, { type: "triangle", vol: 0.14, slideTo: 460, filterFreq: 1800 });
   }
 
@@ -252,6 +289,7 @@ class Sfx {
     this.motor(420, 120, 0.55, { vol: 0.1 });
   }
   grab(): void {
+    this.sample("grab", 0.8);
     this.noise(0.1, { vol: 0.26, hp: 250, lp: 3200, wet: 0.15 });
     this.tone(95, 0.15, { type: "square", vol: 0.24, slideTo: 55, detune: 9, filterFreq: 900, filterSweepTo: 200 });
     this.metal(1900, 0.1, { vol: 0.1, delay: 0.01 });
@@ -276,6 +314,10 @@ class Sfx {
   }
   win(size: number): void {
     // coin cascade — count and brightness scale with payout size
+    const chips = Math.min(8, 2 + Math.floor(size * 1.5));
+    for (let i = 0; i < chips; i++) {
+      this.sample(`chips-${1 + (i % 3)}` as SampleName, 0.55, i * 0.07, 0.9 + Math.random() * 0.25);
+    }
     const n = Math.min(26, 6 + Math.floor(size * 3));
     for (let i = 0; i < n; i++) {
       const f = 900 + Math.random() * 1100 + i * 10;
@@ -285,6 +327,8 @@ class Sfx {
     this.tone(784, 0.26, { type: "triangle", vol: 0.2, delay: 0.1, detune: 5, filterFreq: 2800, wet: 0.25 });
   }
   jackpot(): void {
+    this.sample("jackpot", 0.9);
+    this.sample("handle", 0.8, 0.2);
     const notes = [523, 659, 784, 1047, 1319];
     notes.forEach((f, i) =>
       this.tone(f, 0.5, { type: "square", vol: 0.2, delay: i * 0.09, detune: 6, filterFreq: 2600, wet: 0.3 }),
@@ -295,6 +339,7 @@ class Sfx {
     this.noise(0.5, { vol: 0.1, hp: 4000, lp: 12000, delay: 0.1, wet: 0.25 });
   }
   newPrize(): void {
+    this.sample("prize", 0.8);
     this.tone(880, 0.1, { type: "triangle", vol: 0.2, filterFreq: 3200 });
     this.tone(1175, 0.14, { type: "triangle", vol: 0.2, delay: 0.09, filterFreq: 3600 });
     this.tone(1568, 0.2, { type: "triangle", vol: 0.18, delay: 0.19, filterFreq: 4200, wet: 0.3 });

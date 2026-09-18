@@ -154,10 +154,12 @@ track and backdrop stream in afterward.
 
 ## Credits
 
-Built with AI tooling (allowed and encouraged by the jam). Every prize, the
-claw, and the cabinet chrome are hand-authored vector art drawn on `<canvas>`.
-Every sound effect is synthesised. The two exceptions: the looping background
-track (`public/audio/`) and the cabinet backdrop photo (`public/images/`,
-AI-generated via Pollinations.ai).
+Built with AI tooling (allowed and encouraged by the jam).
+
+- **UI chrome, icons, font** — [Kenney](https://kenney.nl) *UI Pack: Sci-Fi* and *Game Icons* (CC0), 9-sliced with CSS `border-image`. Licenses are kept beside the files in `src/assets/`.
+- **Sound effects** — Kenney *Casino Audio*, *Interface Sounds*, *Impact Sounds* (CC0), layered over synthesised voices (`public/audio/sfx/`).
+- **Backdrops, mode art, prize photos** — AI-generated via Pollinations.ai (`public/images/`).
+- **Music loop** — `public/audio/arcade-loop.mp3`.
+- **Cabinet, claw, prize fallbacks** — vector art drawn on `<canvas>`.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

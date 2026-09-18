@@ -1,13 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-mode="plush">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>CLAW — provably-fair claw machine</title>
     <meta name="description" content="Pick your risk, drop the claw, grab the prize. A provably-fair claw machine built on the Chain casino SDK for Chain Jam Vol. 1." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app">
@@ -17,7 +14,7 @@
           <span class="brand-sub">provably-fair claw machine</span>
         </div>
         <div class="topbar-right">
-          <button id="soundToggle" class="sound-toggle" aria-label="toggle sound" title="sound">🔊</button>
+          <button id="soundToggle" class="sound-toggle" aria-label="toggle sound" title="sound"><img data-icon="audioOn" alt="" /></button>
           <div class="wallet">
             <span class="wallet-label">balance</span>
             <span id="balance" class="wallet-amount">—</span>
@@ -38,9 +35,9 @@
 
           <div class="betblock">
             <div class="bet-row">
-              <button class="step" id="betDown" aria-label="lower bet">–</button>
+              <button class="step" id="betDown" aria-label="lower bet"><img data-icon="minus" alt="" /></button>
               <div class="bet-amount"><span id="bet">5</span><small>chUSD</small></div>
-              <button class="step" id="betUp" aria-label="raise bet">+</button>
+              <button class="step" id="betUp" aria-label="raise bet"><img data-icon="plus" alt="" /></button>
             </div>
             <div class="bet-chips" id="betChips"></div>
           </div>
