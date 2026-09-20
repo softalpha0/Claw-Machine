@@ -117,32 +117,6 @@ watch `snapshot.sessions.items` for the `sessionKey` going terminal → read the
 VRF word from `raw.gameState` / `raw.randomness` → `resolve()` locally for the
 kind + prize → animate → `revealOutcome({ sessionId })`.
 
-## Project layout
-
-```
-contracts/ClawMachineV2.sol   ICasinoGameV2 implementation (the paytable lives here + in outcome.ts)
-public/game.manifest.json     SDK discovery manifest + jam widget served from index.html
-scripts/montecarlo.ts         RTP proof — millions of real seeds vs the closed form
-scripts/tune.ts               solve multipliers for a target RTP
-
-src/game/config.ts            single source of truth for every number
-src/game/rng.ts               VRF word -> unbiased WAD uniforms (sha256 expansion)
-src/game/outcome.ts           resolve(seed, mode, bet) -> Outcome   (game + montecarlo + contract mirror)
-src/game/prizes.ts            the 30-prize catalogue
-src/game/machine.ts           canvas rendering + the reveal timeline + idle attract mode
-src/game/prizeArt.ts          hand-authored vector glyphs
-src/game/audio.ts             synthesised SFX (WebAudio) + the master bus / reverb / compressor
-src/game/music.ts             looping background track, wired to the same mute toggle
-src/game/collection.ts        the prize shelf (localStorage, seed-stamped)
-src/casino/client.ts          CasinoClient interface
-src/casino/mockClient.ts      standalone demo client
-src/casino/chainClient.ts     @chain/casino-sdk/guest bridge
-src/jam/widget.ts             footer credit (the required script tag is in index.html)
-src/main.ts                   HUD + orchestration
-public/audio/arcade-loop.mp3        background music (a real recorded loop)
-public/images/cabinet-backdrop.jpg  AI-generated cabinet backdrop, drawn behind the pile
-```
-
 ## Tech
 
 Vite + TypeScript, a single `<canvas>` for the machine, WebAudio for every sound
@@ -152,14 +126,3 @@ pile. `@noble/hashes` for SHA-256. No framework — the production bundle
 (excluding the two media assets) is ~17 KB gzipped and loads instantly; the
 track and backdrop stream in afterward.
 
-## Credits
-
-Built with AI tooling (allowed and encouraged by the jam).
-
-- **UI chrome, icons, font** — [Kenney](https://kenney.nl) *UI Pack: Sci-Fi* and *Game Icons* (CC0), 9-sliced with CSS `border-image`. Licenses are kept beside the files in `src/assets/`.
-- **Sound effects** — Kenney *Casino Audio*, *Interface Sounds*, *Impact Sounds* (CC0), layered over synthesised voices (`public/audio/sfx/`).
-- **Backdrops, mode art, prize photos** — AI-generated via Pollinations.ai (`public/images/`).
-- **Music loop** — `public/audio/arcade-loop.mp3`.
-- **Cabinet, claw, prize fallbacks** — vector art drawn on `<canvas>`.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
