@@ -1,9 +1,23 @@
 # Audio sources
 
-The collector redesign uses four existing recordings/effects. No new audio was
-generated. The earlier arcade-room candidates and background track are not played
-by the new runtime. Audio starts after a user gesture; movement follows the arm's
-animation and fades when it stops. Muting or hiding the tab stops active voices.
+The collector redesign uses four existing recordings/effects and the creator's
+original arcade background track. No new audio was generated. Audio starts after
+a user gesture; movement follows the arm's animation and fades when it stops.
+Muting or hiding the tab stops effects and fades out the background track.
+
+## Original background track
+
+`public/audio/arcade-loop.mp3` is the creator-supplied track already present in
+commit `3660425`, restored at the user's request. Its duration is 2:16.307.
+The repository provides no external source or license attribution for this file;
+it is not one of the CC0 effects listed below.
+
+The original gain was 0.32. The restored track uses 0.035 (about 19 dB lower),
+with a gentle fade rather than an abrupt start. It streams independently from
+the short effects, so loading music never delays a click or claw movement.
+Web Audio controls the music level, including on mobile devices. Muting and tab
+visibility are shared with the game, and returning resumes the same position
+instead of restarting the song. See [`src/game/ambience.ts`](../src/game/ambience.ts).
 
 ## Selected effects
 
@@ -69,7 +83,10 @@ Timing and gain are defined in [`src/game/audio.ts`](../src/game/audio.ts).
 it. Phase changes ramp level and playback rate, then soften towards the next
 stop. Returning to park is quieter. `stopMovement()` uses a 100 ms fade; grip
 and reward calls also stop any travel voice. Numeric arguments remain supported
-for older callers. The click and win recordings/levels are retained.
+for older callers. The click and win recordings are retained. The latest mix
+reduces click gain from 0.642 to 0.46, grip from 0.8 to 0.44 and win from 0.365
+to 0.28. Motor phase levels are roughly halved. Gentle low-pass filters at
+1800 Hz for movement and 2400 Hz for grip soften the mechanical whine further.
 
 ## Technical validation of the revised mechanical cues
 

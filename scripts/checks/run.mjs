@@ -2,7 +2,7 @@
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 
-for (const check of ["outcome-collection-check.ts", "machine-check.ts", "audio-check.ts", "chain-client-check.ts"]) {
+for (const check of ["outcome-collection-check.ts", "machine-check.ts", "audio-check.ts", "ambience-check.ts", "chain-client-check.ts"]) {
   const result = await build({
     entryPoints: [fileURLToPath(new URL(check, import.meta.url))],
     bundle: true, platform: "node", format: "esm", write: false,

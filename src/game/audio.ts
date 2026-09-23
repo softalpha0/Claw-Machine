@@ -1,4 +1,6 @@
-/** Selected stock recordings, played once per physical action. No music bed. */
+/** Quiet original arcade music with short, restrained action cues. */
+import { GameAmbience } from "./ambience.ts";
+
 type Sound = "click" | "move" | "grip" | "win";
 export type MovementPhase =
   | "aim"
@@ -9,12 +11,12 @@ export type MovementPhase =
   | "whiff";
 type MovementProfile = { level: number; rate: number; duration: number };
 const MOVEMENT: Record<MovementPhase, MovementProfile> = {
-  aim: { level: 0.46, rate: 0.97, duration: 0.72 },
-  descend: { level: 0.38, rate: 0.88, duration: 0.76 },
-  lift: { level: 0.49, rate: 0.94, duration: 0.76 },
-  carry: { level: 0.44, rate: 1.02, duration: 0.9 },
-  park: { level: 0.27, rate: 0.85, duration: 0.65 },
-  whiff: { level: 0.32, rate: 0.89, duration: 0.68 },
+  aim: { level: 0.25, rate: 0.97, duration: 0.72 },
+  descend: { level: 0.19, rate: 0.88, duration: 0.76 },
+  lift: { level: 0.25, rate: 0.94, duration: 0.76 },
+  carry: { level: 0.22, rate: 1.02, duration: 0.9 },
+  park: { level: 0.12, rate: 0.85, duration: 0.65 },
+  whiff: { level: 0.15, rate: 0.89, duration: 0.68 },
 };
 type Voice = {
   source: AudioBufferSourceNode;
@@ -28,16 +30,17 @@ const FILES: Record<Sound, string> = {
   win: "small-win.wav",
 };
 const LEVELS: Record<Sound, number> = {
-  click: 0.642,
+  click: 0.46,
   move: 1,
-  grip: 0.8,
-  win: 0.365,
+  grip: 0.44,
+  win: 0.28,
 };
 const LENGTHS: Partial<Record<Sound, number>> = { click: 0.34, win: 1.32 };
 
 class GameAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private ambience: GameAmbience | null = null;
   private muted = false;
   private ready: Promise<void> | null = null;
   private resumed: Promise<void> = Promise.resolve();
@@ -66,6 +69,8 @@ class GameAudio {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 0.78;
       this.master.connect(this.ctx.destination);
+      this.ambience = new GameAmbience(this.ctx);
+      this.ambience.setMuted(this.muted);
       this.ready = Promise.allSettled(
         (Object.keys(FILES) as Sound[]).map(async (key) => {
           const response = await fetch(
@@ -86,9 +91,11 @@ class GameAudio {
       });
     }
     this.resumed = this.ctx.resume().catch(() => {});
+    this.ambience?.unlock();
   }
   setMuted(muted: boolean): void {
     this.muted = muted;
+    this.ambience?.setMuted(muted);
     if (this.ctx && this.master)
       this.master.gain.setTargetAtTime(
         muted ? 0 : 0.78,
@@ -161,7 +168,17 @@ class GameAudio {
     const source = this.ctx.createBufferSource(),
       gain = this.ctx.createGain();
     source.buffer = buffer;
-    source.connect(gain);
+    // Tame the small motor's high-frequency whine without muffling UI feedback.
+    const filter = key === "move" || key === "grip"
+      ? this.ctx.createBiquadFilter()
+      : null;
+    if (filter) {
+      filter.type = "lowpass";
+      filter.frequency.value = key === "move" ? 1800 : 2400;
+      filter.Q.value = 0.5;
+      source.connect(filter);
+      filter.connect(gain);
+    } else source.connect(gain);
     gain.connect(this.master);
     const now = this.ctx.currentTime,
       level = LEVELS[key] * scale;
@@ -182,6 +199,7 @@ class GameAudio {
     source.onended = () => {
       this.voices.delete(voice);
       source.disconnect();
+      filter?.disconnect();
       gain.disconnect();
       if (this.movement === voice) this.movement = null;
     };

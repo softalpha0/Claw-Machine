@@ -50,6 +50,20 @@ class FakeGain {
   connect() {}
   disconnect() {}
 }
+class FakeFilter {
+  type = "lowpass";
+  frequency = new FakeParam();
+  Q = new FakeParam();
+  connect() {}
+  disconnect() {}
+}
+class FakeMedia {
+  paused = true;
+  loop = false;
+  preload = "none";
+  async play() { this.paused = false; }
+  pause() { this.paused = true; }
+}
 class FakeSource {
   buffer: { duration: number; name: string } | null = null;
   loop = false;
@@ -73,6 +87,7 @@ class FakeContext {
   destination = {};
   sources: FakeSource[] = [];
   gains: FakeGain[] = [];
+  filters: FakeFilter[] = [];
   constructor() {
     contexts.push(this);
   }
@@ -88,6 +103,12 @@ class FakeContext {
     const source = new FakeSource();
     this.sources.push(source);
     return source;
+  }
+  createMediaElementSource() { return { connect() {} }; }
+  createBiquadFilter() {
+    const filter = new FakeFilter();
+    this.filters.push(filter);
+    return filter;
   }
   resume() {
     return (resumeGate?.promise ?? Promise.resolve()).then(() => {
@@ -112,6 +133,7 @@ Object.defineProperty(globalThis, "performance", {
   value: { now: () => clock },
 });
 Object.assign(globalThis, {
+  Audio: FakeMedia,
   window: { AudioContext: FakeContext },
   document: {
     baseURI: "http://localhost/",
@@ -179,7 +201,8 @@ try {
   respondAll();
   await drain();
   const motor = contexts[0]!.sources[0]!;
-  const motorGain = contexts[0]!.gains[1]!.gain;
+  const motorGain = contexts[0]!.gains[2]!.gain;
+  assert.equal(contexts[0]!.filters[0]!.frequency.value, 1800);
   assert.equal(motor.loopStart, 0);
   assert.equal(
     motor.loopEnd,
@@ -211,6 +234,7 @@ try {
   await drain();
   assert.equal(motor.stopped, true, "claw closure must stop the travel motor");
   assert.equal(contexts[0]!.sources.at(-1)!.buffer!.name, "grip-close.wav");
+  assert.equal(contexts[0]!.filters.at(-1)!.frequency.value, 2400);
   assert.equal(
     contexts[0]!.sources.at(-1)!.loop,
     false,
@@ -229,7 +253,7 @@ try {
     "loading across several phases must not stack motor voices",
   );
   assert.ok(
-    contexts[0]!.gains[1]!.gain.target < 0.25,
+    contexts[0]!.gains[2]!.gain.target < 0.25,
     "latest phase controls the deferred motor",
   );
 
