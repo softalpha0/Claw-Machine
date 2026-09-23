@@ -19,11 +19,10 @@
  * The contract (contracts/ClawMachineV2.sol) computes the identical payout on
  * chain — resolve() here only needs the word for kind + prize + animation.
  *
- * The SDK import is `any`-typed on purpose so `npm run dev` works before the
- * package is linked. Once `npm link @chain/casino-sdk` is done you can tighten
- * this to `HostApiV1` / `HostSnapshotV1` / `GuestApiV1` from the SDK. If
- * `npm run build` then reports "Cannot find module '@chain/casino-sdk/guest'",
- * add a one-line `declare module "@chain/casino-sdk/guest";` d.ts back.
+ * The guest SDK is included in vendor/casino-sdk and installed through the
+ * package.json file dependency. Vite bundles this dynamic import for the host
+ * path; no npm link, developer-specific directory or ambient module shim is
+ * needed. Standalone demo mode does not initialize the host bridge.
  */
 
 import { resolve, type Outcome } from "../game/outcome.ts";
@@ -79,7 +78,7 @@ export class ChainSdkClient implements CasinoClient {
   }
 
   private async connect(): Promise<void> {
-    const sdk: any = await import(/* @vite-ignore */ "@chain/casino-sdk/guest");
+    const sdk: any = await import("@chain/casino-sdk/guest");
     const connection = sdk.connectGameToHost({
       setState: async (snap: Snapshot) => this.onSnapshot(snap),
     });
@@ -93,6 +92,8 @@ export class ChainSdkClient implements CasinoClient {
   }
 
   private onSnapshot(snap: Snapshot): void {
+    const previousMaxBet = this.maxBet();
+    const previousBalance = this.balance;
     this.snapshot = snap;
     if (!snap) return;
 
@@ -100,10 +101,12 @@ export class ChainSdkClient implements CasinoClient {
     const raw = snap.balances?.smartVaultBalance;
     if (raw !== undefined) {
       const next = Number(BigInt(raw)) / 10 ** this.decimals;
-      if (next !== this.balance) {
-        this.balance = next;
-        for (const cb of this.listeners) cb(next);
-      }
+      this.balance = next;
+    }
+    // A platform cap can change without a balance movement. Notify the same
+    // UI listeners so they refresh available wagers and the drop button.
+    if (this.balance !== previousBalance || this.maxBet() !== previousMaxBet) {
+      for (const cb of this.listeners) cb(this.balance);
     }
 
     const rows = snap.sessions?.items ?? [];

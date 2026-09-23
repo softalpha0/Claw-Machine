@@ -4,3 +4,5 @@ dist/
 .DS_Store
 scratch_*
 claw-dist.zip
+public/audio/collector/select-click.mp3
+public/audio/collector/small-win.wav
