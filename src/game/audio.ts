@@ -36,6 +36,7 @@ const LEVELS: Record<Sound, number> = {
   win: 0.28,
 };
 const LENGTHS: Partial<Record<Sound, number>> = { click: 0.34, win: 1.32 };
+const EFFECTS_LEVEL = 0.62;
 
 class GameAudio {
   private ctx: AudioContext | null = null;
@@ -67,7 +68,7 @@ class GameAudio {
       if (!Constructor) return;
       this.ctx = new Constructor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.78;
+      this.master.gain.value = this.muted ? 0 : EFFECTS_LEVEL;
       this.master.connect(this.ctx.destination);
       this.ambience = new GameAmbience(this.ctx);
       this.ambience.setMuted(this.muted);
@@ -98,7 +99,7 @@ class GameAudio {
     this.ambience?.setMuted(muted);
     if (this.ctx && this.master)
       this.master.gain.setTargetAtTime(
-        muted ? 0 : 0.78,
+        muted ? 0 : EFFECTS_LEVEL,
         this.ctx.currentTime,
         0.025,
       );
