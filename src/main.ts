@@ -13,6 +13,7 @@ import { type Prize } from "./game/prizes.ts";
 import { drawPrizeSprite, preloadPrizeSprites } from "./game/prizeSprites.ts";
 import { explain, getWonPrizes, type Outcome } from "./game/outcome.ts";
 import { ClawMachine, type Beat } from "./game/machine.ts";
+import { RewardDisplay } from "./game/rewardDisplay.ts";
 import { Collection } from "./game/collection.ts";
 import { sfx } from "./game/audio.ts";
 import { ICON, type IconName } from "./game/uiIcons.ts";
@@ -51,6 +52,9 @@ let bet: number = DEFAULT_BET,
 let client: CasinoClient = new MockClient();
 const collection = new Collection();
 const machine = new ClawMachine($<HTMLCanvasElement>("machine"));
+const reward = new RewardDisplay(
+  document.querySelector<HTMLElement>(".stage-wrap")!,
+);
 void document.fonts?.load('700 28px "Kenney Future"');
 document
   .querySelectorAll<HTMLImageElement>("img[data-icon]")
@@ -72,6 +76,7 @@ function buildTabs(): void {
       shelfMode = id;
       document.documentElement.dataset.mode = id;
       machine.setMode(id);
+      reward.clear();
       renderTabs();
       renderShelf();
       updateOdds();
@@ -250,6 +255,7 @@ async function onDrop(): Promise<void> {
   )
     return;
   rolling = true;
+  reward.clear();
   closeBetMenu();
   renderBet();
   renderTabs();
@@ -292,11 +298,15 @@ async function onDrop(): Promise<void> {
 function onBeat(beat: Beat, o: Outcome): void {
   switch (beat as string) {
     case "aim":
-      sfx.startMovement();
-      setMessage("Lining up the claw…");
+      sfx.startMovement("aim");
+      setMessage(
+        machine.pickupIndex > 1
+          ? "Double Grab · going back for your second prize…"
+          : "Lining up the claw…",
+      );
       break;
     case "descend":
-      sfx.startMovement();
+      sfx.startMovement("descend");
       setMessage("Going in…");
       break;
     case "grab":
@@ -305,24 +315,27 @@ function onBeat(beat: Beat, o: Outcome): void {
       setMessage("Got a grip?");
       break;
     case "lift":
-      sfx.startMovement();
+      sfx.startMovement("lift");
       setMessage("Hold on…");
       break;
     case "carry":
-      sfx.startMovement();
+      sfx.startMovement("carry");
       setMessage("Bringing your prize home…");
       break;
     case "drop":
       sfx.stopMovement();
       break;
     case "park":
-      sfx.startMovement(0.55);
+      sfx.startMovement("park");
       break;
     case "settle":
       sfx.stopMovement();
       break;
+    case "restock":
+      sfx.stopMovement();
+      break;
     case "whiff":
-      sfx.startMovement(0.55);
+      sfx.startMovement("whiff");
       setMessage("Empty claw. Another prize is waiting.", "miss");
       break;
     case "slip":
@@ -332,6 +345,7 @@ function onBeat(beat: Beat, o: Outcome): void {
     case "win":
       sfx.stopMovement();
       sfx.win(o.payoutX);
+      reward.show(o);
       setMessage(
         `Prize secured · ${money(o.payout)} chUSD · ${o.payoutX}×`,
         "win",
@@ -340,6 +354,7 @@ function onBeat(beat: Beat, o: Outcome): void {
     case "bonus":
       sfx.stopMovement();
       sfx.jackpot();
+      reward.show(o);
       $("bonusSign").classList.add("won");
       setMessage(
         `Double Grab · ${money(o.payout)} chUSD · ${o.payoutX}×`,
@@ -371,6 +386,7 @@ function finishReveal(o: Outcome): void {
   if (o.kind === "whiff")
     setMessage("Empty claw. Your next favourite is still in there.", "miss");
   if (o.kind === "grab" || o.kind === "bonus") {
+    reward.show(o);
     $("bonusSign").classList.toggle("won", o.kind === "bonus");
     setMessage(
       `${o.kind === "bonus" ? "Double Grab" : "Prize secured"} · ${money(o.payout)} chUSD · ${o.payoutX}×`,

@@ -1,5 +1,21 @@
 /** Selected stock recordings, played once per physical action. No music bed. */
 type Sound = "click" | "move" | "grip" | "win";
+export type MovementPhase =
+  | "aim"
+  | "descend"
+  | "lift"
+  | "carry"
+  | "park"
+  | "whiff";
+type MovementProfile = { level: number; rate: number; duration: number };
+const MOVEMENT: Record<MovementPhase, MovementProfile> = {
+  aim: { level: 0.46, rate: 0.97, duration: 0.72 },
+  descend: { level: 0.38, rate: 0.88, duration: 0.76 },
+  lift: { level: 0.49, rate: 0.94, duration: 0.76 },
+  carry: { level: 0.44, rate: 1.02, duration: 0.9 },
+  park: { level: 0.27, rate: 0.85, duration: 0.65 },
+  whiff: { level: 0.32, rate: 0.89, duration: 0.68 },
+};
 type Voice = {
   source: AudioBufferSourceNode;
   gain: GainNode;
@@ -7,14 +23,14 @@ type Voice = {
 };
 const FILES: Record<Sound, string> = {
   click: "select-click.mp3",
-  move: "move-camera.mp3",
-  grip: "grip-servo.mp3",
+  move: "move-soft-loop.wav",
+  grip: "grip-close.wav",
   win: "small-win.wav",
 };
 const LEVELS: Record<Sound, number> = {
   click: 0.642,
-  move: 0.68,
-  grip: 0.78,
+  move: 1,
+  grip: 0.8,
   win: 0.365,
 };
 const LENGTHS: Partial<Record<Sound, number>> = { click: 0.34, win: 1.32 };
@@ -53,7 +69,10 @@ class GameAudio {
       this.ready = Promise.allSettled(
         (Object.keys(FILES) as Sound[]).map(async (key) => {
           const response = await fetch(
-            new URL(`audio/collector/${FILES[key]}`, document.baseURI),
+            new URL(
+              `${import.meta.env.BASE_URL}audio/collector/${FILES[key]}`,
+              document.baseURI,
+            ),
           );
           if (!response.ok) throw new Error(`Audio unavailable: ${key}`);
           this.buffers.set(
@@ -96,6 +115,38 @@ class GameAudio {
     voice.gain.gain.linearRampToValueAtTime(0, now + seconds);
     voice.source.stop(now + seconds + 0.01);
   }
+  private hold(param: AudioParam, now: number): void {
+    if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now);
+    else {
+      const value = param.value;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(value, now);
+    }
+  }
+  private shapeMovement(
+    voice: Voice,
+    profile: MovementProfile,
+    starting: boolean,
+  ): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const gain = voice.gain.gain;
+    const rate = voice.source.playbackRate;
+    this.hold(gain, now);
+    this.hold(rate, now);
+    if (starting) {
+      gain.setValueAtTime(0, now);
+      rate.setValueAtTime(profile.rate * 0.88, now);
+    }
+    // Ease into speed, then soften as the carriage reaches the next stop.
+    // Adjacent movement beats reshape this voice instead of replaying attack.
+    gain.linearRampToValueAtTime(profile.level, now + 0.12);
+    gain.setValueAtTime(profile.level, now + profile.duration * 0.65);
+    gain.linearRampToValueAtTime(profile.level * 0.52, now + profile.duration);
+    rate.linearRampToValueAtTime(profile.rate, now + 0.13);
+    rate.setValueAtTime(profile.rate, now + profile.duration * 0.72);
+    rate.linearRampToValueAtTime(profile.rate * 0.91, now + profile.duration);
+  }
   private voice(key: Sound, scale = 1, loop = false): Voice | null {
     if (
       !this.ctx ||
@@ -118,9 +169,9 @@ class GameAudio {
     gain.gain.setValueAtTime(loop ? 0 : level, now);
     if (loop) {
       source.loop = true;
-      source.loopStart = 0.1;
-      source.loopEnd = Math.min(buffer.duration - 0.14, 0.985);
-      gain.gain.linearRampToValueAtTime(level, now + 0.06);
+      // PCM derivative has an 80 ms wrap crossfade baked into its whole loop.
+      source.loopStart = 0;
+      source.loopEnd = buffer.duration;
     } else if (key === "win" || key === "click") {
       const fade = key === "win" ? 0.19 : 0.05;
       gain.gain.setValueAtTime(level, now + duration - fade);
@@ -151,20 +202,32 @@ class GameAudio {
         this.voice(key, scale);
     });
   }
-  startMovement(scale = 1): void {
-    this.stopMovement();
+  startMovement(phase: MovementPhase | number = "aim"): void {
     if (this.muted || document.hidden) return;
+    const profile =
+      typeof phase === "number"
+        ? {
+            ...MOVEMENT.aim,
+            level: MOVEMENT.aim.level * Math.max(0, Math.min(phase, 1.5)),
+          }
+        : MOVEMENT[phase];
+    if (this.movement && !this.movement.stopping) {
+      this.shapeMovement(this.movement, profile, false);
+      return;
+    }
     this.unlock();
-    const version = this.movementVersion;
+    // Only the most recent phase requested while assets load is allowed to start.
+    const version = ++this.movementVersion;
     void Promise.all([this.ready, this.resumed]).then(() => {
-      if (version === this.movementVersion)
-        this.movement = this.voice("move", scale, true);
+      if (version !== this.movementVersion) return;
+      this.movement = this.voice("move", 1, true);
+      if (this.movement) this.shapeMovement(this.movement, profile, true);
     });
   }
   stopMovement(): void {
     this.movementVersion++;
     if (this.movement) {
-      this.fadeStop(this.movement);
+      this.fadeStop(this.movement, 0.1);
       this.movement = null;
     }
   }
@@ -175,22 +238,25 @@ class GameAudio {
     this.click();
   }
   grab(): void {
+    this.stopMovement();
     this.play("grip");
   }
   win(_multiplier: number): void {
+    this.stopMovement();
     this.play("win");
   }
   jackpot(): void {
+    this.stopMovement();
     this.play("win", 1.05);
   }
   gantry(): void {
-    this.startMovement();
+    this.startMovement("aim");
   }
   descend(): void {
-    this.startMovement();
+    this.startMovement("descend");
   }
   lift(): void {
-    this.startMovement();
+    this.startMovement("lift");
   }
   whiff(): void {
     this.stopMovement();

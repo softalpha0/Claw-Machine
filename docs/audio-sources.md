@@ -10,8 +10,8 @@ animation and fades when it stops. Muting or hiding the tab stops active voices.
 | Event | Source | License | Game file |
 | --- | --- | --- | --- |
 | Button / mode selection | [Select click, Mixkit 1109](https://mixkit.co/free-sound-effects/interface/) | [Mixkit Sound Effects Free License](https://mixkit.co/license/modal/sfxFree/) | `public/audio/collector/select-click.mp3` |
-| Arm movement | [Zoom Camera, sheepfilms, Freesound 154795](https://freesound.org/people/sheepfilms/sounds/154795/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | `public/audio/collector/move-camera.mp3` |
-| Claw closure | [Small servo (arduino), gpag1, Freesound 520514](https://freesound.org/people/gpag1/sounds/520514/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | `public/audio/collector/grip-servo.mp3` |
+| Arm movement | [Zoom Camera, sheepfilms, Freesound 154795](https://freesound.org/people/sheepfilms/sounds/154795/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | `public/audio/collector/move-soft-loop.wav` |
+| Claw closure | [Small servo (arduino), gpag1, Freesound 520514](https://freesound.org/people/gpag1/sounds/520514/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | `public/audio/collector/grip-close.wav` |
 | Prize / double grab | [Small win, Mixkit 2020](https://mixkit.co/free-sound-effects/win/) | [Mixkit Sound Effects Free License](https://mixkit.co/license/modal/sfxFree/) | `public/audio/collector/small-win.wav` |
 
 Source and license records were checked on 2026-09-23. Creator credit is retained
@@ -21,7 +21,7 @@ particular claw cabinet.
 
 ## Source-file handling
 
-The two CC0 derivatives, `move-camera.mp3` and `grip-servo.mp3`, are included in
+The two CC0 derivatives, `move-soft-loop.wav` and `grip-close.wav`, are included in
 the repository. They were made from the sources' public high-quality previews:
 
 - [Camera preview](https://cdn.freesound.org/previews/154/154795_1027757-hq.mp3)
@@ -48,11 +48,15 @@ directly. Do not force-add the ignored source files to Git.
 
 ## Editing and playback
 
-- Camera: source 2.035–3.165 seconds, 100 Hz high-pass and 5200 Hz low-pass,
-  +4.2 dB gain, 65 ms fade-in and 135 ms fade-out. The 1.13-second derivative
-  loops only while the arm travels; the runtime fades the voice on stop.
-- Servo: source 3.79–4.32 seconds, 160 Hz high-pass and 4200 Hz low-pass,
-  +12 dB gain, 25 ms fade-in and 100 ms fade-out. One 0.53-second closure cue.
+- Camera: source 2.12–2.96 seconds, 150 Hz high-pass, 3100 Hz low-pass,
+  and Q=3 bell cuts at 2000 Hz (−7 dB) and 4497 Hz (−9 dB). An 80 ms cosine
+  wrap crossfade blends the end with the beginning; removing the overlap gives
+  a 0.76-second loop. DC is removed and RMS set to −28 dBFS. It is stored as
+  mono 48 kHz PCM16 WAV to avoid codec padding at the loop point.
+- Servo: a different single source movement at 4.68–4.95 seconds, 180 Hz
+  high-pass and 3200 Hz low-pass, 1.2× tempo preserving pitch, +16 dB gain,
+  12 ms fade-in and 75 ms fade-out starting at 0.15 seconds. The resulting
+  0.238-second cue replaces the previous two-burst 0.53-second excerpt.
 - Click: the unchanged Mixkit source is limited to 0.34 seconds at playback,
   with a final 50 ms fade and reduced gain.
 - Win: the unchanged Mixkit source is limited to 1.32 seconds at playback,
@@ -60,11 +64,37 @@ directly. Do not force-add the ignored source files to Git.
   slightly louder; collection updates do not stack another reward sound.
 
 Timing and gain are defined in [`src/game/audio.ts`](../src/game/audio.ts).
-CC0 derivative checksums:
+`startMovement(phase)` accepts `aim`, `descend`, `lift`, `carry`, `park` or
+`whiff`. Adjacent movement phases reuse one active source instead of restarting
+it. Phase changes ramp level and playback rate, then soften towards the next
+stop. Returning to park is quieter. `stopMovement()` uses a 100 ms fade; grip
+and reward calls also stop any travel voice. Numeric arguments remain supported
+for older callers. The click and win recordings/levels are retained.
+
+## Technical validation of the revised mechanical cues
+
+These are measured properties, not a claim that an automated agent listened to
+the sounds. Final tone and balance should be judged in the running game.
+
+| Measurement | Earlier movement | Revised movement | Earlier grip | Revised grip |
+| --- | --- | --- | --- | --- |
+| Duration | 1.13 s | 0.76 s loop | 0.53 s | 0.238 s |
+| Sample peak | −7.51 dBFS | −14.40 dBFS | −9.62 dBFS | −14.04 dBFS |
+| RMS | −25.34 dBFS | −28.00 dBFS | −27.37 dBFS | −29.36 dBFS |
+| Spectral energy above 3 kHz | 51.71% | 20.51% | 72.78% | 58.48% |
+
+The motor's wrap sample discontinuity is reduced from −30.01 dBFS at the old
+runtime loop boundaries to −43.00 dBFS. Both revised files fully decode without
+errors or clipped samples. Grip starts and ends at zero. Playback tests cover
+continuous phase transitions, smooth ramp scheduling, one motor voice after
+deferred loading, closure stopping travel, mute, hidden tabs, stale events and
+individual file failures.
+
+Current CC0 derivative checksums:
 
 ```text
-b0836927b736a35ee56ab0aea4f27f2a04b8c2d4ca4561237c84af81e32fb7bc  move-camera.mp3
-cf27cc91334e6ffe6b29e521a61bf68f210688ab42584431f38ca8ab3f9381e9  grip-servo.mp3
+86f93a2dc4c4f2a513b8d924d270cfb2ecbdc38b2a744cd9e218b893590fd748  move-soft-loop.wav
+3485cae0503a2db663e9d06754ebb1c2d7bbf139ee079feea5875426ef9820a5  grip-close.wav
 ```
 
 The Mixkit source checksums are pinned in the preparation script.
