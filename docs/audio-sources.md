@@ -87,6 +87,9 @@ for older callers. The click and win recordings are retained. The latest mix
 reduces click gain from 0.642 to 0.46, grip from 0.8 to 0.44 and win from 0.365
 to 0.28. Motor phase levels are roughly halved. Gentle low-pass filters at
 1800 Hz for movement and 2400 Hz for grip soften the mechanical whine further.
+The shared effects bus is set to 0.62 instead of 0.78, a further 2 dB reduction
+across clicks, movement, grip and prizes. The independent background track stays
+at 0.035, including after muting and re-enabling sound.
 
 ## Technical validation of the revised mechanical cues
 
