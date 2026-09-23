@@ -16,8 +16,11 @@ that produced it.
 
 The redesigned cabinet puts full-body prizes inside the machine and a persistent
 collection shelf beside it. Plush, Gadget and Jackpot each contain ten collectibles;
-missing prizes appear as matching silhouettes. A double grab adds both prizes to
-the collection. The desktop cabinet, controls and shelf fit together without page
+missing prizes appear as matching silhouettes. A double grab retrieves two visible
+prizes in succession and adds both to the collection. The claw preserves each
+object's size and position at contact; empty slots restock visibly from above.
+A persistent arcade win plaque shows the actual prizes, total payout and multiplier
+after delivery. The desktop cabinet, controls and shelf fit together without page
 scrolling, with a separate responsive arrangement on smaller screens.
 
 This is a presentation and interaction update. The three modes keep their existing
@@ -107,6 +110,11 @@ npm run montecarlo   # prove the RTP over millions of real seeds
 npm run tune         # re-solve the multipliers for a target RTP
 npm run build        # typecheck + production bundle into dist/
 ```
+
+For visual reveal checks, open `/qa/reveal.html` on the development server. This
+local-only page has deterministic presentation fixtures and pause/frame controls;
+it places no bets and is excluded from the production build. Check all three
+machines, pickup contact, transport, slip, sequential Double Grab and the win plaque.
 
 The regression runner is also available as `node scripts/checks/run.mjs`. Its
 host checks use an in-memory SDK mock, with no wallet or real transactions.
