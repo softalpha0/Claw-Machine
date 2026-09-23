@@ -25,8 +25,9 @@ scrolling, with a separate responsive arrangement on smaller screens.
 
 This is a presentation and interaction update. The three modes keep their existing
 outcome probabilities, multipliers and seed-based payout calculation. Selected
-recordings provide the button, arm movement, grip and win sounds; the new audio
-runtime has no background music bed. See [artwork provenance](./docs/collector-assets.md)
+recordings provide quiet button, arm movement, grip and win sounds. The creator's
+original arcade track plays softly underneath, fading in after interaction and
+pausing when muted or hidden. See [artwork provenance](./docs/collector-assets.md)
 and [audio sources](./docs/audio-sources.md).
 
 ---
