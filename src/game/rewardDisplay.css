@@ -322,3 +322,19 @@
     animation: none;
   }
 }
+
+@container (max-width: 300px) {
+  .reward-plaque { top: 3%; }
+  .reward-topline { height: 25px; min-height: 25px; font-size: 10px; }
+  .reward-close { width: 19px; height: 19px; top: 6px; right: 7px; font-size: 16px; }
+  .reward-body { min-height: 86px; }
+  .reward-showcase canvas { max-height: 86px; }
+  .reward-value { padding: 5px; gap: 1px; }
+  .reward-label { font-size: 10px; margin-bottom: 0; }
+  .reward-value strong { font-size: 30px; }
+  .reward-currency { font-size: 10px; }
+  .reward-multiplier { margin-top: 3px; padding: 2px 4px; font-size: 8px; }
+  .reward-ticket { min-height: 25px; padding: 5px 7px; font-size: 9px; }
+  .reward-stamp { display: none; }
+  .reward-large-amount .reward-value strong { font-size: 26px; }
+}
