@@ -3,16 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CLAW — a provably-fair claw machine for Chain Jam Vol. 1",
+  "description": "CLAW \u2014 a provably-fair claw machine for Chain Jam Vol. 1",
   "scripts": {
     "dev": "vite --port 5173",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 5173",
+    "test": "node scripts/checks/run.mjs",
     "montecarlo": "node scripts/montecarlo.ts",
-    "tune": "node scripts/tune.ts"
+    "tune": "node scripts/tune.ts",
+    "predev": "node scripts/prepare-audio.mjs",
+    "prebuild": "node scripts/prepare-audio.mjs"
   },
   "dependencies": {
-    "@chain/casino-sdk": "file:../../Downloads/casino-sdk/casino-sdk",
+    "@chain/casino-sdk": "file:vendor/casino-sdk",
     "@noble/hashes": "^1.6.1"
   },
   "devDependencies": {

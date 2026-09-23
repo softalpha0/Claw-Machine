@@ -15,7 +15,7 @@
  */
 
 import { MODES, type ModeId, type ModeConfig } from "./config.ts";
-import { PRIZES_BY_MODE } from "./prizes.ts";
+import { PRIZES_BY_MODE, PRIZE_BY_KEY, type Prize } from "./prizes.ts";
 import { toSeed, uniformWad, toWad, weightedPick, bytesToHex, type Seed } from "./rng.ts";
 
 export type ResultKind = "whiff" | "slip" | "grab" | "bonus";
@@ -37,6 +37,17 @@ export interface Outcome {
 
 /** chUSD has 6 decimals; the contract truncates at each WAD division, so we do too. */
 const floor6 = (n: number) => Math.floor(n * 1e6) / 1e6;
+
+/** Cosmetic collection rewards. Index 11 never participates in payout math. */
+export function getWonPrizes(o: Outcome): Prize[] {
+  if (!o.prizeKey || (o.kind !== "grab" && o.kind !== "bonus")) return [];
+  const first = PRIZE_BY_KEY[o.prizeKey];
+  if (!first) return [];
+  if (o.kind !== "bonus") return [first];
+  const pool = PRIZES_BY_MODE[o.mode].filter(p => p.key !== first.key);
+  const second = pool[weightedPick(toSeed(o.seedHex), 11, pool.map(p => p.weight))];
+  return second ? [first, second] : [first];
+}
 
 export function resolve(seedInput: string | Uint8Array, mode: ModeId, bet: number): Outcome {
   const seed: Seed = toSeed(seedInput);

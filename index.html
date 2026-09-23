@@ -2,84 +2,215 @@
 <html lang="en" data-mode="plush">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>CLAW — provably-fair claw machine</title>
-    <meta name="description" content="Pick your risk, drop the claw, grab the prize. A provably-fair claw machine built on the Chain casino SDK for Chain Jam Vol. 1." />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#131222" />
+    <title>CLAW — the collector's arcade</title>
+    <meta
+      name="description"
+      content="Three machines. Thirty prizes. Pick your machine, drop the claw and fill your prize shelf. A provably-fair arcade for Chain Jam."
+    />
   </head>
   <body>
     <div id="app">
       <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark">C&nbsp;L&nbsp;A&nbsp;W</span>
-          <span class="brand-sub">provably-fair claw machine</span>
-        </div>
+        <a class="brand" href="./" aria-label="CLAW home">CLAW</a>
         <div class="topbar-right">
-          <button id="soundToggle" class="sound-toggle" aria-label="toggle sound" title="sound"><img data-icon="audioOn" alt="" /></button>
+          <button
+            id="soundToggle"
+            class="round-button sound-toggle"
+            aria-label="Mute sound"
+            aria-pressed="false"
+          >
+            <img data-icon="audioOn" alt="" />
+          </button>
           <div class="wallet">
-            <span class="wallet-label">balance</span>
-            <span id="balance" class="wallet-amount">—</span>
-            <span class="wallet-cur">chUSD</span>
-            <button id="refill" class="refill" hidden>refill demo</button>
+            <span id="balanceLabel" class="wallet-label">DEMO BALANCE</span
+            ><strong id="balance">1,000.00</strong
+            ><span class="currency">chUSD</span
+            ><button id="refill" class="refill" hidden>Refill demo</button>
           </div>
         </div>
       </header>
-
-      <main class="layout">
-        <section class="stage-wrap">
-          <canvas id="machine" aria-label="claw machine"></canvas>
-          <div id="message" class="message">pick a machine and drop the claw</div>
-        </section>
-
-        <section class="panel">
-          <div class="modes" id="modes" role="tablist" aria-label="risk mode"></div>
-
-          <div class="betblock">
-            <div class="bet-row">
-              <button class="step" id="betDown" aria-label="lower bet"><img data-icon="minus" alt="" /></button>
-              <div class="bet-amount"><span id="bet">5</span><small>chUSD</small></div>
-              <button class="step" id="betUp" aria-label="raise bet"><img data-icon="plus" alt="" /></button>
+      <main class="workbench">
+        <section class="machine-column" aria-label="Claw machine">
+          <div
+            class="modes"
+            id="modes"
+            role="tablist"
+            aria-label="Choose a machine"
+          ></div>
+          <div class="cabinet chrome">
+            <span class="screw top-left" aria-hidden="true"></span
+            ><span class="screw top-right" aria-hidden="true"></span>
+            <div class="glass-bezel">
+              <div class="stage-wrap">
+                <canvas
+                  id="machine"
+                  role="img"
+                  tabindex="0"
+                  aria-label="Animated claw machine. Use Drop the claw to play."
+                  aria-describedby="message"
+                ></canvas>
+              </div>
             </div>
-            <div class="bet-chips" id="betChips"></div>
+            <div id="message" class="message" role="status" aria-live="polite">
+              Choose your machine. Find your next favourite.
+            </div>
+            <div class="console">
+              <div class="betblock">
+                <span class="control-label">BET</span>
+                <div class="bet-row">
+                  <button
+                    id="betDown"
+                    class="round-button step"
+                    aria-label="Lower bet"
+                  >
+                    −</button
+                  ><button
+                    id="betAmount"
+                    class="bet-amount"
+                    aria-label="Choose bet amount"
+                    aria-expanded="false"
+                    aria-controls="betChips"
+                  >
+                    <strong id="bet">5.00</strong><span>chUSD</span></button
+                  ><button
+                    id="betUp"
+                    class="round-button step"
+                    aria-label="Raise bet"
+                  >
+                    +
+                  </button>
+                </div>
+                <div id="betChips" class="bet-chips" hidden></div>
+              </div>
+              <div id="odds" class="odds"></div>
+              <button id="drop" class="drop" disabled>
+                <span>DROP THE CLAW</span
+                ><svg viewBox="0 0 32 32" aria-hidden="true">
+                  <path
+                    d="M16 2v9m-5-3h10v6H11zm0 5C2 18 6 26 11 28l2-5m8-10c9 5 5 13 0 15l-2-5m-3-9v11"
+                  />
+                </svg>
+              </button>
+              <div class="bonus-sign" id="bonusSign">
+                <svg viewBox="0 0 40 34" aria-hidden="true">
+                  <path
+                    d="M20 2v8m-5-3h10v8H15zm0 7C4 19 5 28 13 31l3-6m9-11c11 5 10 14 2 17l-3-6m-4-10v11"
+                  /></svg
+                ><strong>DOUBLE<br />GRAB</strong
+                ><span id="bonusMultiplier">2× payout</span>
+              </div>
+            </div>
+            <span class="screw bottom-left" aria-hidden="true"></span
+            ><span class="screw bottom-right" aria-hidden="true"></span>
           </div>
-
-          <button id="drop" class="drop">DROP THE CLAW</button>
-
-          <div class="odds" id="odds"></div>
-
-          <details class="verify" id="verify">
-            <summary>verify last drop</summary>
-            <div class="verify-body" id="verifyBody">no drops yet</div>
-          </details>
+        </section>
+        <section class="shelf chrome" aria-label="Your prize collection">
+          <div class="shelf-head">
+            <h1>PRIZE SHELF</h1>
+            <span id="shelfCount" class="shelf-count"
+              >0 <small>/ 30</small></span
+            >
+          </div>
+          <div
+            id="shelfTabs"
+            class="shelf-tabs"
+            role="tablist"
+            aria-label="Browse prize collection"
+          ></div>
+          <div
+            id="shelfGrid"
+            class="shelf-grid"
+            role="tabpanel"
+            aria-label="Plush collection"
+          ></div>
+          <div class="shelf-foot">
+            <span id="shelfNote">Your next favourite is in there.</span
+            ><span id="shelfProgress">0 / 10</span>
+          </div>
         </section>
       </main>
-
-      <section class="shelf">
-        <div class="shelf-head">
-          <h2>Prize shelf</h2>
-          <div class="shelf-progress">
-            <span id="shelfCount">0 / 30</span>
-            <div class="bar"><div id="shelfBar" class="bar-fill"></div></div>
-            <button id="shelfReset" class="linkbtn">reset</button>
-          </div>
-        </div>
-        <div class="shelf-grid" id="shelfGrid"></div>
-      </section>
-
       <footer class="footer">
         <div id="jamWidget"></div>
-        <p class="fineprint">
-          Every drop is decided by one VRF seed:
-          <code>sha256(seed ++ index)</code> → held? → slipped? → bonus?.
-          Theoretical RTP 95.5% (93–98% band). Prize identity is flavour only and never
-          changes the payout. Standalone demo uses a mock seed + play-money balance.
-          <a href="https://jam.chain.wtf/" target="_blank" rel="noopener">Chain Jam Vol. 1</a>
-        </p>
+        <nav aria-label="Game information">
+          <button id="howToPlay">How to play</button
+          ><button id="verifyOpen">Verify last drop</button
+          ><span class="rtp">95.5% RTP</span>
+        </nav>
       </footer>
     </div>
-
-    <div id="toast" class="toast" hidden></div>
-
-    <!-- Chain Jam submission widget — required on the hosted page. -->
+    <dialog id="infoDialog" class="dialog">
+      <button
+        class="dialog-close"
+        data-close
+        aria-label="Close game information"
+      >
+        ×</button
+      ><span class="eyebrow">WELCOME TO THE ARCADE</span>
+      <h2>Make room on your shelf.</h2>
+      <p>
+        Pick a machine, choose your bet and drop the claw. Land a prize to add
+        it to your collection. Prize identity is cosmetic and never changes your
+        payout.
+      </p>
+      <div class="how-steps">
+        <p>
+          <b>01 · Choose</b>Plush, Gadget or Jackpot. Each has its own chance of
+          keeping a prize and its own payout.
+        </p>
+        <p>
+          <b>02 · Drop</b>The claw can miss, slip, or bring a prize home. A slip
+          returns 20% of your bet.
+        </p>
+        <p>
+          <b>03 · Collect</b>Double Grab adds two different prizes to your shelf
+          and boosts the payout.
+        </p>
+      </div>
+      <div id="paytable" class="paytable"></div>
+      <p class="dialog-note">
+        Each result is derived from one seed. The embedded game uses the casino
+        host; the standalone demo uses play money and a locally generated random
+        seed. Collection progress is saved in this browser.
+      </p>
+      <details class="collection-tools">
+        <summary>Collection settings</summary>
+        <p>
+          Clear this browser's collection. This does not affect your balance.
+        </p>
+        <button id="shelfReset" class="secondary-button">
+          Clear collection
+        </button>
+      </details>
+    </dialog>
+    <dialog id="verifyDialog" class="dialog verify-dialog">
+      <button class="dialog-close" data-close aria-label="Close verification">
+        ×</button
+      ><span class="eyebrow">PROVABLY FAIR</span>
+      <h2>Verify your last drop.</h2>
+      <p>
+        The result can be reproduced from its seed. Prize selection never
+        affects the payout.
+      </p>
+      <pre id="verifyBody">Play a round to see its result and seed here.</pre>
+    </dialog>
+    <dialog id="prizeDialog" class="dialog prize-dialog">
+      <button class="dialog-close" data-close aria-label="Close prize details">
+        ×</button
+      ><canvas
+        id="prizePreview"
+        width="480"
+        height="400"
+        aria-hidden="true"
+      ></canvas
+      ><span id="prizeRarity" class="eyebrow"></span>
+      <h2 id="prizeName"></h2>
+      <p id="prizeDetail"></p>
+    </dialog>
     <script async src="https://jam.chain.wtf/widget.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
