@@ -116,6 +116,9 @@ export class ClawMachine {
     this.ctx = context;
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
+    // The desktop stage is scaled with a transform, which a ResizeObserver does
+    // not see; the backing store still has to follow the on-screen size.
+    window.addEventListener("resize", this.onWindowResize);
     this.resize();
     this.setMode("plush");
     this.backdrop.onload = () => {
@@ -226,6 +229,8 @@ export class ClawMachine {
     if (this.canvas.height !== height) this.canvas.height = height;
   }
 
+  private onWindowResize = (): void => this.resize();
+
   private onVisibility = (): void => {
     if (document.hidden) this.finishReveal();
     this.last = performance.now();
@@ -269,6 +274,7 @@ export class ClawMachine {
     cancelAnimationFrame(this.raf);
     clearTimeout(this.watchdog);
     this.resizeObserver.disconnect();
+    window.removeEventListener("resize", this.onWindowResize);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.backdrop.onload = null;
   }

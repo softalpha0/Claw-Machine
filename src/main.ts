@@ -26,6 +26,27 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   if (!el) throw new Error(`Missing #${id}`);
   return el as T;
 };
+// Desktop keeps one fixed 1640×1020 layout (see the stage rule at the end of
+// style.css) and scales it to the window, so nothing shifts between screens.
+const STAGE = { width: 1640, height: 1020, margin: 24 };
+const desktop = window.matchMedia("(min-width: 900px)");
+function fitStage(): void {
+  const scale = desktop.matches
+    ? Math.min(
+        (window.innerWidth - STAGE.margin * 2) / STAGE.width,
+        (window.innerHeight - STAGE.margin) / STAGE.height,
+      )
+    : 1;
+  document.documentElement.style.setProperty(
+    "--stage-scale",
+    String(Math.max(0.1, scale)),
+  );
+}
+fitStage();
+window.addEventListener("resize", fitStage);
+new ResizeObserver(fitStage).observe(document.documentElement);
+desktop.addEventListener("change", fitStage);
+
 const money = (n: number) =>
   n.toLocaleString("en-US", {
     minimumFractionDigits: 2,

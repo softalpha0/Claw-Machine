@@ -1101,7 +1101,7 @@ img {
       inset 0 0 12px #ff8eca;
   }
 }
-@media (min-width: 1500px) and (min-height: 900px) {
+@media (min-width: 900px) {
   .modes {
     height: 62px;
   }
@@ -1185,148 +1185,6 @@ img {
   }
   .shelf {
     contain: size;
-  }
-}
-@media (min-width: 900px) and (max-height: 730px) {
-  #app {
-    width: min(calc(100vw - 44px), calc((100dvh - 282px) * 2.4));
-    gap: 10px;
-    padding: 12px 0 8px;
-  }
-  .topbar {
-    height: 39px;
-  }
-  .brand {
-    font-size: 32px;
-  }
-  .modes {
-    height: 44px;
-    gap: 7px;
-  }
-  .mode {
-    font-size: 13px;
-  }
-  .mode svg {
-    width: 21px;
-    height: 21px;
-  }
-  .cabinet {
-    padding: 14px 14px 12px;
-  }
-  .console {
-    min-height: 81px;
-    grid-template-columns: minmax(118px, 1fr) minmax(136px, 1fr) minmax(
-        145px,
-        1.2fr
-      ) 60px;
-    gap: 6px;
-    padding-top: 7px;
-  }
-  .drop {
-    font-size: 14px;
-    min-height: 68px;
-    border-radius: 24px;
-  }
-  .step {
-    width: 30px;
-    height: 30px;
-    font-size: 23px;
-  }
-  .bet-row {
-    gap: 5px;
-  }
-  .bet-amount {
-    min-width: 64px;
-  }
-  .bet-amount strong {
-    font-size: 19px;
-  }
-  .stat strong {
-    font-size: 18px;
-  }
-  .stat strong small {
-    font-size: 13px;
-  }
-  .stat {
-    gap: 10px;
-  }
-  .bonus-sign strong {
-    font-size: 10px;
-  }
-  .bonus-sign > span {
-    font-size: 9px;
-  }
-  .shelf {
-    padding: 11px 11px 9px;
-    gap: 8px;
-  }
-  .shelf-head {
-    height: 43px;
-  }
-  .shelf-head h1 {
-    font-size: 15px;
-    letter-spacing: 2px;
-  }
-  .shelf-count {
-    font-size: 15px;
-    padding: 0 9px;
-  }
-  .shelf-count small {
-    font-size: 12px;
-  }
-  .shelf-tab {
-    min-height: 44px;
-  }
-  .shelf-grid {
-    gap: 6px;
-  }
-  .slot-name {
-    font-size: 11px;
-  }
-  .message {
-    height: 28px;
-    font-size: 12px;
-  }
-  .shelf-foot {
-    font-size: 10px;
-  }
-}
-@media (max-width: 1100px) and (min-width: 900px) {
-  .workbench {
-    gap: 12px;
-  }
-  .console {
-    grid-template-columns: 135px 144px minmax(155px, 1fr);
-    gap: 7px;
-  }
-  .bonus-sign {
-    display: none;
-  }
-  .mode {
-    font-size: 13px;
-  }
-  .shelf-head h1 {
-    font-size: 15px;
-    letter-spacing: 1px;
-  }
-  .shelf-count {
-    font-size: 15px;
-    padding: 0 9px;
-  }
-  .shelf-tab > span {
-    font-size: 10px;
-  }
-  .slot-name {
-    font-size: 11px;
-  }
-  .wallet-label {
-    font-size: 10px;
-  }
-  .topbar-right {
-    gap: 13px;
-  }
-  .wallet {
-    gap: 9px;
   }
 }
 @media (max-width: 899px) {
@@ -1662,17 +1520,6 @@ img {
 #jamWidget #chain-jam-badge:hover {
   transform: none;
 }
-@media (min-width: 900px) and (max-height: 650px) {
-  .bonus-sign {
-    display: none;
-  }
-  .console {
-    grid-template-columns: minmax(118px, 1fr) minmax(132px, 1fr) minmax(
-        135px,
-        1.2fr
-      );
-  }
-}
 @media (max-width: 360px) {
   .topbar {
     gap: 10px;
@@ -1731,5 +1578,39 @@ img {
   }
   .slot-name {
     font-size: 11px;
+  }
+}
+
+/* ── Desktop: one fixed stage, scaled as a whole ─────────────────────────────
+   The layout used to re-flow with the window: #app took its width from the
+   viewport height, and three height/width breakpoints resized the console and
+   the shelf. On short windows (a laptop with bookmarks bar, 1280×510) the
+   console overflowed into the prize shelf. Now every desktop gets the same
+   1640×1020 layout, and main.ts scales it to fit (--stage-scale), so the
+   positions never change, only the size. */
+@media (min-width: 900px) {
+  #app {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1640px;
+    height: 1020px;
+    min-height: 0;
+    margin: 0;
+    transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
+    transform-origin: center;
+  }
+  /* Type that followed the window width is pinned to its 1640px-stage size. */
+  .brand {
+    font-size: 48px;
+  }
+  .wallet strong {
+    font-size: 30px;
+  }
+  .drop {
+    font-size: 22px;
+  }
+  .shelf-head h1 {
+    font-size: 23px;
   }
 }
