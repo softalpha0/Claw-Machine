@@ -35,6 +35,8 @@ Object.assign(globalThis, {
     devicePixelRatio: 1,
     matchMedia: () => ({ matches: false }),
     setTimeout,
+    addEventListener: () => {},
+    removeEventListener: () => {},
   },
   document: {
     baseURI: "http://localhost/",
